@@ -1,0 +1,11 @@
+# Object detection and tracking with YOLO
+ultralytics
+
+# Video processing
+opencv-python-headless
+
+# Geometry handling for regions and points
+Shapely
+
+# General-purpose packages
+numpy
