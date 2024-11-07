@@ -1,3 +1,13 @@
+import sys
+from pathlib import Path
+
+# Remove the existing `ultralytics` module from sys.modules if already imported
+if 'ultralytics' in sys.modules:
+    del sys.modules['ultralytics']
+
+# Insert the custom `ultralytics` path at the beginning of sys.path
+sys.path.insert(0, r"D:\\ultralytics")
+
 import cv2
 import numpy as np
 from collections import defaultdict
@@ -15,7 +25,7 @@ class VehicleCounter:
     def __init__(
         self,
         camera_name,
-        weights="yolov8n.pt",
+        weights="yolov10n.pt",
         source=None,
         device="cpu",
         view_img=False,

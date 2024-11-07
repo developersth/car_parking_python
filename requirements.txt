@@ -1,5 +1,5 @@
 # Object detection and tracking with YOLO
-ultralytics
+ultralytics==8.2.103
 
 # Video processing
 opencv-python-headless
