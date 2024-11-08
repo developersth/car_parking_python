@@ -8,10 +8,10 @@ if 'ultralytics' in sys.modules:
 # Insert the custom `ultralytics` path at the beginning of sys.path
 sys.path.insert(0, r"D:\\ultralytics")
 
-import cv2
+import cv2, time
+import os.path
 import numpy as np
 from collections import defaultdict
-from pathlib import Path
 from ultralytics import YOLO, solutions
 from ultralytics.utils.files import increment_path
 
@@ -54,6 +54,10 @@ class VehicleCounter:
         self.model = YOLO(self.weights)
         self.model.to("cuda") if device == "0" else self.model.to("cpu")
 
+        if not os.path.exists(self.source):
+            print("File {} is not exist.".format(str(self.source)))
+            exit()
+
         # Video properties
         self.videocapture = cv2.VideoCapture(self.source)
         self.frame_width = int(self.videocapture.get(3))
@@ -92,7 +96,7 @@ class VehicleCounter:
             height = int(self.frame_height * (width / self.frame_width))
         return width, height
 
-    def run(self):
+    def run(self, mqtt_client=None):
         """Run the vehicle counting process on video frames."""
         counter = solutions.ObjectCounter(
             names=self.model.model.names,
@@ -116,6 +120,8 @@ class VehicleCounter:
             )
 
         vid_frame_count = 0
+        mqtt_publish_interval = 0.5
+        mqtt_time = time.time()
         while self.videocapture.isOpened():
             success, im0 = self.videocapture.read()
             if not success:
@@ -124,18 +130,29 @@ class VehicleCounter:
 
             # Resize frame
             vid_frame_count += 1
+            if vid_frame_count % 3 != 0:
+                continue 
+
             im0 = cv2.resize(im0, (self.new_width, self.new_height))
 
             # Track objects
             tracks = self.model.track(im0, persist=True, show=False, classes=self.classes, verbose=True)
+
+            msg = {}
 
             # Count and display counts
             im0 = counter.start_counting(im0, tracks)
             if self.camera_name == "b-in":
                 counter2.start_counting(im0, tracks)
                 cv2.putText(im0, f'In:{counter.in_counts}, Out:{counter2.in_counts}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
+                msg = {'line_1': (counter.in_counts, counter.out_counts), 'line_2': (counter2.in_counts, counter2.out_counts)}
             else:
                 cv2.putText(im0, f'In:{counter.in_counts}, Out:{counter.out_counts}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
+                msg = {'line_1': (counter.in_counts, counter.out_counts)}
+
+            if mqtt_client and ((time.time()-mqtt_time) > mqtt_publish_interval):
+                mqtt_client.publish(f"SYS/{self.camera_name}", str(msg))
+                mqtt_time = time.time()
 
             # Write frame to video
             self.video_writer.write(im0)
@@ -156,6 +173,5 @@ class VehicleCounter:
         self.videocapture.release()
         cv2.destroyAllWindows()
 
-# Example usage
-counter = VehicleCounter(camera_name="b-in", source="D:\\CarPark\\ZONE B-IN\\Camera1_VR-20241025-110855.mp4", view_img=True, save_img=True)
-counter.run()
+# counter = VehicleCounter(camera_name="b-in", source="D:\\CarPark\\ZONE B-IN\\Camera1_VR-20241025-110855.mp4", view_img=True, save_img=True)
+# counter.run()

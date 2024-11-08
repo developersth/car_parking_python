@@ -1,0 +1,4 @@
+MQTT_HOST="mqtt.esmaserv.com"
+MQTT_PORT="1883"
+MQTT_USER="mqttclient"
+MQTT_PASS="xxxx"

@@ -2,6 +2,7 @@
 ultralytics==8.2.103
 
 # Video processing
+opencv-python==4.10.0.84
 opencv-python-headless
 
 # Geometry handling for regions and points
@@ -9,3 +10,5 @@ Shapely
 
 # General-purpose packages
 numpy
+
+paho-mqtt
