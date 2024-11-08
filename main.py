@@ -35,15 +35,18 @@ def ensure_path_exists(path):
     except OSError as e:
         print(f"Error creating path: {e}")
 
-# Example usage
-mqtt_client = MQTTClient(broker_address=MQTT_HOST, port=MQTT_PORT, username=MQTT_USER, password=MQTT_PASS)
-mqtt_client.connect()
-time.sleep(1.0)
+mqtt_client = None
 
-while not mqtt_client.connected:
-    mqtt_client.reconnect()
+# # Example usage
+# mqtt_client = MQTTClient(broker_address=MQTT_HOST, port=MQTT_PORT, username=MQTT_USER, password=MQTT_PASS)
+# mqtt_client.connect()
+# time.sleep(1.0)
 
-processList = ["D:\\CarPark\\ZONE B-IN", "D:\\CarPark\\ZONE B-OUT", "D:\\CarPark\\LAB"]
+# while not mqtt_client.connected:
+#     mqtt_client.reconnect()
+
+# processList = ["D:\\CarPark\\ZONE B-IN", "D:\\CarPark\\ZONE B-OUT", "D:\\CarPark\\LAB-OUT"]
+processList = ["D:\\CarPark\\ZONE A"]
 
 for folder in processList:
     vdoList = get_video_files(directory=folder)
@@ -57,3 +60,4 @@ for folder in processList:
     for fName in vdoList:
         counter = VehicleCounter(camera_name=camName, source=fName, view_img=True, save_img=True)
         counter.run(mqtt_client)
+        break

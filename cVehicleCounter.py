@@ -83,7 +83,8 @@ class VehicleCounter:
             "cam_lab-out": [(100, 300), (1000, 600)],
             "cam_b-out": [(575, 275), (1280, 425)],
             "cam_mg": [(250, 410), (1100, 400)],
-            "cam_b-in": [(50, 400), (500, 250)]
+            "cam_b-in": [(50, 400), (500, 250)],
+            "cam_a": [(325, 475), (475, 250)],
         }
         return line_points_dict.get(camera_name, [(50, 400), (500, 250)])  # Default if not found
 
@@ -119,6 +120,34 @@ class VehicleCounter:
                 view_in_counts=False,
                 view_out_counts=False,
             )
+        elif self.camera_name == "cam_a":
+            counter2 = solutions.ObjectCounter(
+                names=self.model.model.names,
+                view_img=False,
+                reg_pts=[(1000, 250), (700, 600)],
+                draw_tracks=True,
+                line_thickness=self.line_thickness,
+                view_in_counts=False,
+                view_out_counts=False,
+            )
+            counter3 = solutions.ObjectCounter(
+                names=self.model.model.names,
+                view_img=False,
+                reg_pts=[(600, 235), (900, 235)],
+                draw_tracks=True,
+                line_thickness=self.line_thickness,
+                view_in_counts=False,
+                view_out_counts=False,
+            )
+            counter4 = solutions.ObjectCounter(
+                names=self.model.model.names,
+                view_img=False,
+                reg_pts=[(910, 200), (890, 280)],
+                draw_tracks=True,
+                line_thickness=self.line_thickness,
+                view_in_counts=False,
+                view_out_counts=False,
+            )
 
         vid_frame_count = 0
         mqtt_publish_interval = 0.5
@@ -149,6 +178,22 @@ class VehicleCounter:
                 counts2 = counter2.in_counts + counter2.out_counts
                 cv2.putText(im0, f'In:{counts1}, Out:{counts2}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
                 msg = {'line_1': (counts1, counter.in_counts, counter.out_counts), 'line_2': (counts2, counter2.in_counts, counter2.out_counts)}
+            elif self.camera_name == "cam_a":
+                counter2.start_counting(im0, tracks)
+                counter3.start_counting(im0, tracks)
+                counter4.start_counting(im0, tracks)
+
+                counts = counter.in_counts + counter.out_counts
+                counts2 = counter2.in_counts + counter2.out_counts
+                counts3 = counter3.in_counts + counter3.out_counts
+                #out_counts = counter.in_counts + counter.out_counts
+                # (600, 235), (900, 235)
+                cv2.putText(im0, f'lab-in:{counts}', (325, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
+                cv2.putText(im0, f'b-out:{counts2}', (700, 650), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
+                cv2.putText(im0, f'b-in:{counts3}', (550, 210), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
+                msg = {'lab_in': (counts, counter.in_counts, counter.out_counts)}
+                msg['b-out'] = (counts2, counter2.in_counts, counter2.out_counts)
+                msg['b-in'] = (counts3, counter3.in_counts, counter3.out_counts)
             else:
                 counts = counter.in_counts + counter.out_counts
                 #out_counts = counter.in_counts + counter.out_counts
