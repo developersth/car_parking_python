@@ -12,3 +12,4 @@ Shapely
 numpy
 
 paho-mqtt
+python-dotenv

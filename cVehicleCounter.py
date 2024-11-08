@@ -55,6 +55,7 @@ class VehicleCounter:
         self.model.to("cuda") if device == "0" else self.model.to("cpu")
 
         if not os.path.exists(self.source):
+
             print("File {} is not exist.".format(str(self.source)))
             exit()
 
@@ -79,10 +80,10 @@ class VehicleCounter:
     def get_line_points(self, camera_name):
         """Define line points based on camera name."""
         line_points_dict = {
-            "lab-out": [(100, 300), (1000, 600)],
-            "b-out": [(575, 275), (1280, 425)],
-            "mg": [(250, 410), (1100, 400)],
-            "b-in": [(50, 400), (500, 250)]
+            "cam_lab-out": [(100, 300), (1000, 600)],
+            "cam_b-out": [(575, 275), (1280, 425)],
+            "cam_mg": [(250, 410), (1100, 400)],
+            "cam_b-in": [(50, 400), (500, 250)]
         }
         return line_points_dict.get(camera_name, [(50, 400), (500, 250)])  # Default if not found
 
@@ -108,7 +109,7 @@ class VehicleCounter:
             view_out_counts=False,
         )
 
-        if self.camera_name == "b-in":
+        if self.camera_name == "cam_b-in":
             counter2 = solutions.ObjectCounter(
                 names=self.model.model.names,
                 view_img=False,
@@ -130,7 +131,7 @@ class VehicleCounter:
 
             # Resize frame
             vid_frame_count += 1
-            if vid_frame_count % 3 != 0:
+            if vid_frame_count % 1 != 0: # change for process every n frame
                 continue 
 
             im0 = cv2.resize(im0, (self.new_width, self.new_height))
@@ -142,13 +143,17 @@ class VehicleCounter:
 
             # Count and display counts
             im0 = counter.start_counting(im0, tracks)
-            if self.camera_name == "b-in":
+            if self.camera_name == "cam_b-in":
                 counter2.start_counting(im0, tracks)
-                cv2.putText(im0, f'In:{counter.in_counts}, Out:{counter2.in_counts}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
-                msg = {'line_1': (counter.in_counts, counter.out_counts), 'line_2': (counter2.in_counts, counter2.out_counts)}
+                counts1 = counter.in_counts + counter.out_counts
+                counts2 = counter2.in_counts + counter2.out_counts
+                cv2.putText(im0, f'In:{counts1}, Out:{counts2}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
+                msg = {'line_1': (counts1, counter.in_counts, counter.out_counts), 'line_2': (counts2, counter2.in_counts, counter2.out_counts)}
             else:
-                cv2.putText(im0, f'In:{counter.in_counts}, Out:{counter.out_counts}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
-                msg = {'line_1': (counter.in_counts, counter.out_counts)}
+                counts = counter.in_counts + counter.out_counts
+                #out_counts = counter.in_counts + counter.out_counts
+                cv2.putText(im0, f'Count:{counts}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
+                msg = {'line_1': (counts, counter.in_counts, counter.out_counts)}
 
             if mqtt_client and ((time.time()-mqtt_time) > mqtt_publish_interval):
                 mqtt_client.publish(f"SYS/{self.camera_name}", str(msg))
