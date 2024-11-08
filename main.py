@@ -60,4 +60,3 @@ for folder in processList:
     for fName in vdoList:
         counter = VehicleCounter(camera_name=camName, source=fName, view_img=True, save_img=True)
         counter.run(mqtt_client)
-        break
