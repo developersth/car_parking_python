@@ -120,7 +120,7 @@ class cObjectCounter:
             self.is_drawing = False
             self.selected_point = None
 
-    def extract_and_process_tracks(self, tracks):
+    def extract_and_process_tracks(self, tracks, track_algorithms="centroid"):
         """Extracts and processes tracks for object counting in a video stream."""
         # Annotator Init and region drawing
         annotator = Annotator(self.im0, self.tf, self.names)
@@ -150,7 +150,13 @@ class cObjectCounter:
 
                 # Draw Tracks
                 track_line = self.track_history[track_id]
-                track_line.append((float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)))
+                print(track_algorithms)
+                if track_algorithms == None or track_algorithms == "centroid":
+                    track_line.append((float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)))
+                elif track_algorithms == "buttom-right":
+                    track_line.append((float(box[2]), float(box[3])))
+                elif track_algorithms == "center-right":
+                    track_line.append( (float(box[2]), float((box[1] + box[3]) / 2)) )
                 if len(track_line) > 30:
                     track_line.pop(0)
 
@@ -189,9 +195,9 @@ class cObjectCounter:
                     ):
                         # Check if the object's movement segment intersects the counting line
                         line_coords = list(self.counting_line_segment.coords)
-                        direction = self.check_direction_cross_product(line_coords[0], line_coords[1], (prev_position[0], prev_position[1]), track_line[-1])
+                        direction = self.check_crossing_within_line_area(line_coords[0], line_coords[1], (prev_position[0], prev_position[1]), track_line[-1])
 
-                        if direction != "No crossing":
+                        if direction == "IN" or direction == "OUT":
                             self.count_ids.append(track_id)
 
                             # Determine the direction of movement (IN or OUT)
@@ -207,6 +213,8 @@ class cObjectCounter:
                                 self.out_counts += 1
                                 self.class_wise_count[self.names[cls]]["OUT"] += 1
                                 self.state = "OUT"
+                        else:
+                            print("direction: ", direction)
 
         labels_dict = {}
 
@@ -223,6 +231,34 @@ class cObjectCounter:
 
         if labels_dict:
             annotator.display_analytics(self.im0, labels_dict, (104, 31, 17), (255, 255, 255), 10)
+
+    def check_crossing_within_line_area(self, line_start, line_end, prev_point, curr_point):
+        """
+        Checks if the last two points crossed the line segment defined by line_start and line_end
+        and if both points are within the area of the line segment.
+        """
+        # Convert the points to Point objects
+        prev_pt = Point(prev_point)
+        curr_pt = Point(curr_point)
+
+        # Check if both points are within the bounding box of the line segment
+        if not (self.is_point_in_segment_area(prev_pt, line_start, line_end) and
+                self.is_point_in_segment_area(curr_pt, line_start, line_end)):
+            return "No crossing (points not in line area)"
+
+        # Use the cross product check for crossing direction
+        return self.check_direction_cross_product(line_start, line_end, prev_point, curr_point)
+
+    def is_point_in_segment_area(self, point, line_start, line_end):
+        """
+        Checks if the given point is within the bounding box defined by line_start and line_end.
+        """
+        min_x = min(line_start[0], line_end[0])
+        max_x = max(line_start[0], line_end[0])
+        min_y = min(line_start[1], line_end[1])
+        max_y = max(line_start[1], line_end[1])
+
+        return min_x <= point.x <= max_x and min_y <= point.y <= max_y
 
     def check_direction_cross_product(self, line_start, line_end, prev_point, curr_point):
         # Convert LineString to start and end points
@@ -258,7 +294,7 @@ class cObjectCounter:
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 return
 
-    def start_counting(self, im0, tracks):
+    def start_counting(self, im0, tracks, track_algorithms="centroid", parent_name=""):
         """
         Main function to start the object counting process.
 
@@ -266,8 +302,10 @@ class cObjectCounter:
             im0 (ndarray): Current frame from the video stream.
             tracks (list): List of tracks obtained from the object tracking process.
         """
+        if parent_name != "":
+            print("parent_name: ", parent_name)
         self.im0 = im0  # store image
-        self.extract_and_process_tracks(tracks)  # draw region even if no objects
+        self.extract_and_process_tracks(tracks, track_algorithms)  # draw region even if no objects
 
         if self.view_img:
             self.display_frames()
@@ -276,4 +314,4 @@ class cObjectCounter:
 
 if __name__ == "__main__":
     classes_names = {0: "person", 1: "car"}  # example class names
-    ObjectCounter(classes_names)
+    cObjectCounter(classes_names)

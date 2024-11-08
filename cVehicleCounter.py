@@ -19,6 +19,8 @@ from ultralytics.utils.files import increment_path
 from shapely.geometry import Polygon
 from shapely.geometry.point import Point
 
+from cObjectCounter import *
+
 track_history = defaultdict(list)
 
 class VehicleCounter:
@@ -47,6 +49,9 @@ class VehicleCounter:
         self.camera_name = camera_name
         self.track_history = defaultdict(list)
 
+        if self.camera_name == "cam_a":
+            self.model = "yolov10s.pt"
+
         # Set line points based on the camera name
         self.line_points = self.get_line_points(camera_name)
         
@@ -55,7 +60,6 @@ class VehicleCounter:
         self.model.to("cuda") if device == "0" else self.model.to("cpu")
 
         if not os.path.exists(self.source):
-
             print("File {} is not exist.".format(str(self.source)))
             exit()
 
@@ -82,7 +86,7 @@ class VehicleCounter:
         line_points_dict = {
             "cam_lab-out": [(100, 300), (1000, 600)],
             "cam_b-out": [(575, 275), (1280, 425)],
-            "cam_mg": [(250, 410), (1100, 400)],
+            # "cam_mg": [(250, 410), (1100, 400)],
             "cam_b-in": [(50, 400), (500, 250)],
             "cam_a": [(325, 475), (475, 250)],
         }
@@ -100,7 +104,7 @@ class VehicleCounter:
 
     def run(self, mqtt_client=None):
         """Run the vehicle counting process on video frames."""
-        counter = solutions.ObjectCounter(
+        counter = cObjectCounter(
             names=self.model.model.names,
             view_img=False,
             reg_pts=self.line_points,
@@ -111,7 +115,7 @@ class VehicleCounter:
         )
 
         if self.camera_name == "cam_b-in":
-            counter2 = solutions.ObjectCounter(
+            counter2 = cObjectCounter(
                 names=self.model.model.names,
                 view_img=False,
                 reg_pts=[(750, 200), (1050, 190)],
@@ -121,28 +125,28 @@ class VehicleCounter:
                 view_out_counts=False,
             )
         elif self.camera_name == "cam_a":
-            counter2 = solutions.ObjectCounter(
+            # counter2 = cObjectCounter(
+            #     names=self.model.model.names,
+            #     view_img=False,
+            #     reg_pts=[(1000, 250), (800, 500)], # line b-out
+            #     draw_tracks=True,
+            #     line_thickness=self.line_thickness,
+            #     view_in_counts=False,
+            #     view_out_counts=False,
+            # )
+            counter3 = cObjectCounter(
                 names=self.model.model.names,
                 view_img=False,
-                reg_pts=[(1000, 250), (700, 600)],
+                reg_pts=[(600, 275), (900, 240)], # line b-in
                 draw_tracks=True,
                 line_thickness=self.line_thickness,
                 view_in_counts=False,
                 view_out_counts=False,
             )
-            counter3 = solutions.ObjectCounter(
+            counter4 = cObjectCounter(
                 names=self.model.model.names,
                 view_img=False,
-                reg_pts=[(600, 235), (900, 235)],
-                draw_tracks=True,
-                line_thickness=self.line_thickness,
-                view_in_counts=False,
-                view_out_counts=False,
-            )
-            counter4 = solutions.ObjectCounter(
-                names=self.model.model.names,
-                view_img=False,
-                reg_pts=[(910, 200), (890, 280)],
+                reg_pts=[(910, 220), (875, 320)], # line a-in, a-out
                 draw_tracks=True,
                 line_thickness=self.line_thickness,
                 view_in_counts=False,
@@ -167,11 +171,15 @@ class VehicleCounter:
 
             # Track objects
             tracks = self.model.track(im0, persist=True, show=False, classes=self.classes, verbose=True)
+            # tracks = self.model.track(im0, persist=True, show=False, verbose=True)
 
             msg = {}
+            algorithms = "centroid"
+            if self.camera_name == "cam_b-out":
+                algorithms = "buttom-right"
 
             # Count and display counts
-            im0 = counter.start_counting(im0, tracks)
+            im0 = counter.start_counting(im0, tracks, algorithms)
             if self.camera_name == "cam_b-in":
                 counter2.start_counting(im0, tracks)
                 counts1 = counter.in_counts + counter.out_counts
@@ -179,24 +187,25 @@ class VehicleCounter:
                 cv2.putText(im0, f'In:{counts1}, Out:{counts2}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
                 msg = {'line_1': (counts1, counter.in_counts, counter.out_counts), 'line_2': (counts2, counter2.in_counts, counter2.out_counts)}
             elif self.camera_name == "cam_a":
-                counter2.start_counting(im0, tracks)
-                counter3.start_counting(im0, tracks)
-                counter4.start_counting(im0, tracks)
+                # counter2.start_counting(im0, tracks, "buttom-right", parent_name="counter2_b-out") # b-out
+                counter3.start_counting(im0, tracks, "buttom-right") # b-in
+                counter4.start_counting(im0, tracks, "buttom-right") # a
 
                 counts = counter.in_counts + counter.out_counts
-                counts2 = counter2.in_counts + counter2.out_counts
+                # counts2 = counter2.in_counts + counter2.out_counts
                 counts3 = counter3.in_counts + counter3.out_counts
-                #out_counts = counter.in_counts + counter.out_counts
-                # (600, 235), (900, 235)
+
                 cv2.putText(im0, f'lab-in:{counts}', (325, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
-                cv2.putText(im0, f'b-out:{counts2}', (700, 650), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
+                # cv2.putText(im0, f'b-out:{counts2}', (750, 400), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
                 cv2.putText(im0, f'b-in:{counts3}', (550, 210), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
+                # (910, 200), (890, 280)
+                cv2.putText(im0, f'a-in:{counter4.in_counts}, a-out:{counter4.out_counts}', (880, 190), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 2)
+
                 msg = {'lab_in': (counts, counter.in_counts, counter.out_counts)}
-                msg['b-out'] = (counts2, counter2.in_counts, counter2.out_counts)
+                # msg['b-out'] = (counts2, counter2.in_counts, counter2.out_counts)
                 msg['b-in'] = (counts3, counter3.in_counts, counter3.out_counts)
             else:
                 counts = counter.in_counts + counter.out_counts
-                #out_counts = counter.in_counts + counter.out_counts
                 cv2.putText(im0, f'Count:{counts}', (525, 225), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 2)
                 msg = {'line_1': (counts, counter.in_counts, counter.out_counts)}
 

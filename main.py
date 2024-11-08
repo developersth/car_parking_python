@@ -45,8 +45,7 @@ mqtt_client = None
 # while not mqtt_client.connected:
 #     mqtt_client.reconnect()
 
-# processList = ["D:\\CarPark\\ZONE B-IN", "D:\\CarPark\\ZONE B-OUT", "D:\\CarPark\\LAB-OUT"]
-processList = ["D:\\CarPark\\ZONE A"]
+processList = ["D:\\CarPark\\MG"]
 
 for folder in processList:
     vdoList = get_video_files(directory=folder)
@@ -58,5 +57,8 @@ for folder in processList:
     ensure_path_exists(resultFolder)
 
     for fName in vdoList:
-        counter = VehicleCounter(camera_name=camName, source=fName, view_img=True, save_img=True)
-        counter.run(mqtt_client)
+        # print(fName)
+        # if "Camera2_VR-20241025-111430" in fName:
+            counter = VehicleCounter(camera_name=camName, source=fName, view_img=False, save_img=True)
+            counter.run(mqtt_client)
+        # break
