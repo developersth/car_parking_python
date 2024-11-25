@@ -1,3 +1,6 @@
+*.png
+*.jpg
+*.jpeg
 *.pt
 
 # Byte-compiled / optimized / DLL files

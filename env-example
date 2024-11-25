@@ -2,3 +2,9 @@ MQTT_HOST="mqtt.esmaserv.com"
 MQTT_PORT="1883"
 MQTT_USER="mqttclient"
 MQTT_PASS="xxxx"
+
+RTSP_USER="abc"
+RTSP_PASS="1234"
+
+RTSP_MG_USER="abc"
+RTSP_MG_PASS="1234"

@@ -10,6 +10,7 @@ from ultralytics.utils.plotting import Annotator, colors
 check_requirements("shapely>=2.0.0")
 
 from shapely.geometry import LineString, Point, Polygon
+from common_functions import *
 
 
 class cObjectCounter:
@@ -59,6 +60,8 @@ class cObjectCounter:
         self.state = ""
         self.in_counts = 0
         self.out_counts = 0
+        self.in_counts_update = False
+        self.out_counts_update = False
         self.count_ids = []
         self.class_wise_count = {}
 
@@ -121,6 +124,12 @@ class cObjectCounter:
             self.selected_point = None
 
     def extract_and_process_tracks(self, tracks, track_algorithms="centroid"):
+        prev_in_count = self.in_counts
+        prev_out_count = self.out_counts
+        self.in_counts_update = False
+        self.out_counts_update = False
+        detect_img = None
+
         """Extracts and processes tracks for object counting in a video stream."""
         # Annotator Init and region drawing
         annotator = Annotator(self.im0, self.tf, self.names)
@@ -130,15 +139,25 @@ class cObjectCounter:
 
         # Extract tracks for OBB or object detection
         track_data = tracks[0].obb or tracks[0].boxes
+        # print(track_data.cls)
+        # print(track_data.conf)
+        # print(track_data)
+        if track_data:
+            boxes = track_data.xyxy.cpu()
+            clss = track_data.cls.cpu().tolist()
+            for box, cls in zip(boxes, clss):
+                # Draw bounding box
+                annotator.box_label(box, label=self.names[cls])
 
         if track_data and track_data.id is not None:
+            # print('xxxxxxxxxxxxxxxxxxxxx')
             boxes = track_data.xyxy.cpu()
             clss = track_data.cls.cpu().tolist()
             track_ids = track_data.id.int().cpu().tolist()
 
             # Extract tracks
             for box, track_id, cls in zip(boxes, track_ids, clss):
-                if cls in [2, 5]:
+                if cls in [2, 5, 6, 7]:
                     cls = 2
 
                 # Draw bounding box
@@ -150,14 +169,14 @@ class cObjectCounter:
 
                 # Draw Tracks
                 track_line = self.track_history[track_id]
-                print(track_algorithms)
+                # print(track_algorithms)
                 if track_algorithms == None or track_algorithms == "centroid":
                     track_line.append((float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)))
                 elif track_algorithms == "buttom-right":
                     track_line.append((float(box[2]), float(box[3])))
                 elif track_algorithms == "center-right":
                     track_line.append( (float(box[2]), float((box[1] + box[3]) / 2)) )
-                if len(track_line) > 30:
+                if len(track_line) > 150:
                     track_line.pop(0)
 
                 # Draw track trails
@@ -199,6 +218,8 @@ class cObjectCounter:
 
                         if direction == "IN" or direction == "OUT":
                             self.count_ids.append(track_id)
+                            detect_img = crop_object(self.im0, box)
+                            # print("direction: ", direction)
 
                             # Determine the direction of movement (IN or OUT)
                             # dx = (box[0] - prev_position[0]) * (self.counting_region.centroid.x - prev_position[0])
@@ -213,8 +234,8 @@ class cObjectCounter:
                                 self.out_counts += 1
                                 self.class_wise_count[self.names[cls]]["OUT"] += 1
                                 self.state = "OUT"
-                        else:
-                            print("direction: ", direction)
+                        # else:
+                        #     print("direction: ", direction)
 
         labels_dict = {}
 
@@ -231,6 +252,13 @@ class cObjectCounter:
 
         if labels_dict:
             annotator.display_analytics(self.im0, labels_dict, (104, 31, 17), (255, 255, 255), 10)
+        
+        if prev_in_count != self.in_counts:
+            self.in_counts_update = True
+        if prev_out_count != self.out_counts:
+            self.out_counts_update = True
+        
+        return detect_img
 
     def check_crossing_within_line_area(self, line_start, line_end, prev_point, curr_point):
         """
@@ -305,11 +333,11 @@ class cObjectCounter:
         if parent_name != "":
             print("parent_name: ", parent_name)
         self.im0 = im0  # store image
-        self.extract_and_process_tracks(tracks, track_algorithms)  # draw region even if no objects
+        detect_img = self.extract_and_process_tracks(tracks, track_algorithms)  # draw region even if no objects
 
         if self.view_img:
             self.display_frames()
-        return self.im0
+        return self.im0, detect_img
 
 
 if __name__ == "__main__":
