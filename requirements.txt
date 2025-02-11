@@ -13,3 +13,5 @@ numpy
 
 paho-mqtt
 python-dotenv
+
+pymodbus==3.6.9

@@ -10,6 +10,8 @@ import threading
 from queue import Queue
 import torch
 
+from cParkingLotClient import ParkingLotClient
+
 # Set YOLO to quiet mode
 os.environ['YOLO_VERBOSE'] = 'False'
 
@@ -21,6 +23,7 @@ if 'ultralytics' in sys.modules:
 sys.path.insert(0, r"D:\\ultralytics")
 
 from cObjectCounter import *
+from cObjectCounterMG import *
 from cAPIClient import *
 from common_functions import *
 
@@ -30,7 +33,7 @@ class VehicleCounter:
     def __init__(
         self,
         camera_name,
-        weights="yolov10s.pt",
+        weights="yolov10n.pt",
         source=None,
         device="cpu",
         view_img=False,
@@ -54,11 +57,13 @@ class VehicleCounter:
         self.img = None
         self.stop_event = threading.Event()
         self.image_queue = Queue(maxsize=10)
+        self.vdo_width = 426
+        self.last_check_time = None
 
-        if 'lab-out' in self.camera_name:
-            self.weights = "yolov10n.pt"
-        # elif 'b-in' in self.camera_name:
-        #     self.weights = "yolov10s.pt"
+        # if 'lab-out' in self.camera_name:
+        #     self.weights = "yolov10n.pt"
+        if 'main' in self.camera_name or 'b-out' in self.camera_name:
+            self.weights = "yolov10s.pt"
 
         # Set line points based on the camera name
         self.line_points = self.get_line_points(camera_name)
@@ -81,33 +86,38 @@ class VehicleCounter:
         # Define classes to track
         self.classes = [2, 5, 6, 7]  # Define your own classes here
 
-        self.apiClient = APIClient('http://127.0.0.1:5000')  # Your Flask server URL
+        base_url = "http://127.0.0.1:5000"
+        self.apiClient = APIClient(base_url)  # Your Flask server URL
+        self.parking_lot_client = ParkingLotClient(base_url)
 
         # Set desired width and height for output video
         self.new_width, self.new_height = self.calculate_new_size(width=1280, height=None)
-        self.vdo_width, self.vdo_height = self.calculate_new_size(width=640, height=None)
+        self.vdo_width, self.vdo_height = self.calculate_new_size(width=self.vdo_width, height=None)
 
+        self.init_video_writer()
+        self.bLoop=True
+
+    def init_video_writer(self):
         # Get the current date and time
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # Create the new filename with the current date and time
-        filename = f"{current_time}.mp4"
+        filename = f"{current_time}_{self.camera_name}.mp4"
+        # filename = "20241204_005112.mp4"
 
         # Initialize video writer
-        save_dir = Path(f"D:\\CarPark\\rtsp\\{camera_name}")
+        save_dir = Path(f"D:\\CarPark\\rtsp\\")
         save_dir.mkdir(parents=True, exist_ok=True)
         self.video_writer = cv2.VideoWriter(str(save_dir / filename), self.fourcc, self.fps, (self.vdo_width, self.vdo_height))
-
-        self.bLoop=True
 
     def get_line_points(self, camera_name):
         """Define line points based on camera name."""
         line_points_dict = {
             "cam_lab-out": [(100, 300), (1000, 600)],
             "cam_b-out": [(575, 275), (1280, 425)],
-            "cam_b-in": [(50, 400), (500, 250)],
-            "cam_main": [(325, 475), (475, 250)],
-            "cam_mg": [(400, 140), (750, 140)]
+            "cam_b-in": [(50, 350), (570, 200)],
+            "cam_main": [(90, 600), (400, 325)],
+            "cam_mg": [(350, 390), (1100, 330)]
         }
         return line_points_dict.get(camera_name, [(50, 400), (500, 250)])  # Default if not found
 
@@ -131,7 +141,12 @@ class VehicleCounter:
             success, im0 = self.videocapture.read()
             if not success:
                 print("Video frame is empty or video processing has been successfully completed.")
-                break
+                time.sleep(1.0)
+                print("Re-initial for video process.")
+                self.videocapture.release()
+                self.videocapture = cv2.VideoCapture(self.source)
+                print("Re-initial finished.")
+                continue
             im0 = cv2.resize(im0, (self.new_width, self.new_height))
 
             # Calculate FPS
@@ -152,23 +167,34 @@ class VehicleCounter:
             # time.sleep(0.075)
         self.videocapture.release()
 
-    def process_images(self):
+    def counter_init(self):
         """Thread function to process images and display results."""
-        self.counter = cObjectCounter(
-            names=self.model.model.names,
-            view_img=False,
-            reg_pts=self.line_points,
-            draw_tracks=True,
-            line_thickness=self.line_thickness,
-            view_in_counts=False,
-            view_out_counts=False,
-        )
+        if self.camera_name == "cam_mg":
+            self.counter = cObjectCounterMG(
+                names=self.model.model.names,
+                view_img=False,
+                reg_pts=self.line_points,
+                draw_tracks=True,
+                line_thickness=self.line_thickness,
+                view_in_counts=False,
+                view_out_counts=False,
+            )
+        else:
+            self.counter = cObjectCounter(
+                names=self.model.model.names,
+                view_img=False,
+                reg_pts=self.line_points,
+                draw_tracks=True,
+                line_thickness=self.line_thickness,
+                view_in_counts=False,
+                view_out_counts=False,
+            )
 
         if self.camera_name == "cam_b-in":
             self.counter2 = cObjectCounter(
                 names=self.model.model.names,
                 view_img=False,
-                reg_pts=[(750, 200), (1080,189)],
+                reg_pts=[(720, 150), (1050,180)],
                 draw_tracks=True,
                 line_thickness=self.line_thickness,
                 view_in_counts=False,
@@ -178,7 +204,7 @@ class VehicleCounter:
             self.counter3 = cObjectCounter(
                 names=self.model.model.names,
                 view_img=False,
-                reg_pts=[(600, 250), (950, 245)], # line b-in
+                reg_pts=[(600, 300), (1050, 275)], # line b-in
                 draw_tracks=True,
                 line_thickness=self.line_thickness,
                 view_in_counts=False,
@@ -194,10 +220,16 @@ class VehicleCounter:
             #     view_out_counts=False,
             # )
 
+    def process_images(self):
+        """Thread function to process images and display results."""
+        self.counter_init()
+
         # Initialize variables for FPS calculation
         prev_frame_time = 0
         new_frame_time = 0
         frame_count = 0
+        tWarn = 0
+        last_hour = -1
 
         while self.bLoop:
             if not self.image_queue.empty():
@@ -207,7 +239,12 @@ class VehicleCounter:
 
                 # Calculate FPS
                 new_frame_time = time.time()
-                fps = 1 / (new_frame_time - prev_frame_time)
+                dt = new_frame_time - prev_frame_time
+                if dt < 0.1:
+                    time.sleep(0.1 - dt)
+                    new_frame_time = time.time()
+                    dt = new_frame_time - prev_frame_time
+                fps = 1 / dt
                 prev_frame_time = new_frame_time
 
                 # Convert FPS to string and display it on the frame
@@ -228,7 +265,16 @@ class VehicleCounter:
                     y_axis += 35
 
                 # Write frame to video
-                resized_img = image_resize(im0, width=640)
+                resized_img = image_resize(im0, width=self.vdo_width)
+
+                current_time = datetime.now()
+                if self.last_check_time is None or current_time.date() != self.last_check_time.date():
+                    if check_time(4, 0):
+                        self.video_writer.release()
+                        self.init_video_writer()
+                        frame_count = 0
+                        self.counter_init()
+                        self.last_check_time = current_time
                 self.video_writer.write(resized_img)
 
                 # Display video frame if enabled
@@ -237,16 +283,22 @@ class VehicleCounter:
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         self.bLoop=False
                         break
+            else:
+                if time.time()-tWarn > 1.0:
+                    print(f"[{self.camera_name}]: image_queue is empty. waiting for 1 second...")
+                    tWarn = time.time()
+                    time.sleep(0.01)
 
         self.cleanup()
 
     def process(self, im0):
         # Track objects
         tracks = self.model.track(im0, persist=True, show=False, classes=self.classes, verbose=False, conf=0.01)
+        # tracks = self.model.track(im0, persist=True, show=False, classes=self.classes, verbose=False)
         msg = {}
         update = []
         algorithms = "centroid"
-        if self.camera_name == "cam_b-out":
+        if self.camera_name == "cam_b-out" or self.camera_name == "cam_mg":
             algorithms = "buttom-right"
 
         crop_arr = {}
@@ -270,32 +322,34 @@ class VehicleCounter:
             counts1 = self.counter.in_counts + self.counter.out_counts
             counts2 = self.counter2.in_counts + self.counter2.out_counts
             msg = {'line_1': (counts1, self.counter.in_counts, self.counter.out_counts), 'line_2': (counts2, self.counter2.in_counts, self.counter2.out_counts)}
-            if self.counter.in_counts_update or self.counter.out_counts_update:
+            if self.counter.out_counts_update:
+                event='in'
                 self.post_event('b', 'in')
                 self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b')
-                # save_img = im0
-                # if len(crop_arr) > 0:
-                #     save_img = crop_arr[-1]
-                # if 'b' in crop_arr:
-                #     save_img = crop_arr['b']
-                # cv2.imwrite("C:\Apache24\htdocs\images\zone_b.jpg", save_img)
-            if self.counter2.in_counts_update or self.counter2.out_counts_update:
+                self.save_crop(im0, crop_arr, 'b', event)
+            if self.counter.in_counts_update:
+                event='out'
                 self.post_event('b', 'out')
                 self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b')
-                # save_img = im0
-                # if 'b' in crop_arr:
-                #     save_img = crop_arr['b']
-                # cv2.imwrite("C:\Apache24\htdocs\images\zone_b.jpg", save_img)
+                self.save_crop(im0, crop_arr, 'b', event)
+            if self.counter2.out_counts_update:
+                event='in'
+                self.post_event('b', 'in')
+                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+                self.save_crop(im0, crop_arr, 'b', event)
+            if self.counter2.in_counts_update:
+                event='out'
+                self.post_event('b', 'out')
+                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+                self.save_crop(im0, crop_arr, 'b', event)
 
-            txt = "b1: i={}, o={}".format(self.counter.in_counts, self.counter.out_counts)
+            txt = "b1: i={}, o={}".format(self.counter.out_counts, self.counter.in_counts)
             update.append(txt)
-            txt = "b2: i={}, o={}".format(self.counter2.in_counts, self.counter2.out_counts)
+            txt = "b2: i={}, o={}".format(self.counter2.out_counts, self.counter2.in_counts)
             update.append(txt)
 
         elif self.camera_name == "cam_main":
-            _, crop_img = self.counter3.start_counting(im0, tracks, "buttom-right") # b-in
+            _, crop_img = self.counter3.start_counting(im0, tracks, "centroid") # b-in
             if not (crop_img is None):
                 crop_arr['b'] = crop_img
                 # crop_arr.append(crop_img)
@@ -316,29 +370,33 @@ class VehicleCounter:
             # update.append(txt)
 
             if self.counter.in_counts_update:
+                event='in'
                 self.post_event('lab', 'in')
                 self.post_save('lab', 'save_image',"http://localhost/images/zone_lab.jpg")
-                self.save_crop(im0, crop_arr, 'lab')
+                self.save_crop(im0, crop_arr, 'lab', event)
                 # save_img = im0
                 # if len(crop_arr) > 0:
                 #     save_img = crop_arr[-1]
                 # cv2.imwrite("C:\Apache24\htdocs\images\zone_lab.jpg", save_img)
             if self.counter.out_counts_update:
+                event='out'
                 self.post_event('lab', 'out')
                 self.post_save('lab', 'save_image',"http://localhost/images/zone_lab.jpg")
-                self.save_crop(im0, crop_arr, 'lab')
+                self.save_crop(im0, crop_arr, 'lab', event)
                 # save_img = im0
                 # if len(crop_arr) > 0:
                 #     save_img = crop_arr[-1]
                 # cv2.imwrite("C:\Apache24\htdocs\images\zone_lab.jpg", save_img)
-            if self.counter3.in_counts_update or self.counter3.out_counts_update:
+            if self.counter3.in_counts_update:
+                event='in'
                 self.post_event('b', 'in')
                 self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b')
-                # save_img = im0
-                # if len(crop_arr) > 0:
-                #     save_img = crop_arr[-1]
-                # cv2.imwrite("C:\Apache24\htdocs\images\zone_b.jpg", save_img)
+                self.save_crop(im0, crop_arr, 'b', event)
+            if self.counter3.out_counts_update:
+                event='out'
+                self.post_event('b', 'out')
+                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+                self.save_crop(im0, crop_arr, 'b', event)
             # if self.counter4.in_counts_update:
             #     self.post_event('a', 'in')
             #     self.post_save('a', 'save_image',"http://localhost/images/zone_a.jpg")
@@ -366,30 +424,71 @@ class VehicleCounter:
             elif "-in" in self.camera_name:
                 event = 'in'
             
-            if "b-out" in self.camera_name:
+            if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name:
                 txt = cam + ": i={}, o={}".format(self.counter.out_counts, self.counter.in_counts)
             else:
                 txt = cam + ": i={}, o={}".format(self.counter.in_counts, self.counter.out_counts)
             update.append(txt)
-            if self.counter.in_counts_update or self.counter.out_counts_update:
+            if self.counter.in_counts_update:
+                event='in'
+                if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name:
+                    event='out'
+                # print(["counter.in_counts_update", event, self.camera_name])
                 self.post_event(cam, event)
-                # filePath = "C:\Apache24\htdocs\images\zone_" + cam + ".jpg"
                 self.post_save(cam, 'save_image',"http://localhost/images/zone_" + str(cam) + ".jpg")
-                # save_img = im0
-                # if len(crop_arr) > 0:
-                #     save_img = crop_arr[-1]
-                # cv2.imwrite(filePath, save_img)
-
-                self.save_crop(im0, crop_arr, cam)
+                self.save_crop(im0, crop_arr, cam, event)
+            if self.counter.out_counts_update:
+                event='out'
+                if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name:
+                    event='in'
+                # print(["counter.out_counts_update", event, self.camera_name])
+                self.post_event(cam, event)
+                self.post_save(cam, 'save_image',"http://localhost/images/zone_" + str(cam) + ".jpg")
+                self.save_crop(im0, crop_arr, cam, event)
         return msg, update
 
-    def save_crop(self, img, obj, zone):
+    def append_to_file(self, text):
+        """
+        Appends the given text to the specified file. If the file does not exist, it will be created.
+
+        :param file_path: The path to the file where the text will be appended.
+        :param text: The text to append to the file.
+        """
+        file_path = "D:\CarPark\history\history.txt"
+        if not os.path.exists(file_path):
+            try:
+                with open(file_path, 'w') as file:
+                    file.write("")
+                print(f"File created: {file_path}")
+            except Exception as e:
+                print(f"An error occurred while creating the file: {e}")
+
+        try:
+            # Read the existing content of the file
+            with open(file_path, 'r') as file:
+                existing_content = file.read()
+
+            # Write the new text followed by the existing content
+            with open(file_path, 'w') as file:
+                file.write(text + '\n' + existing_content)
+
+            # print(f"Text successfully prepended to {file_path}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    def save_crop(self, img, obj, zone, event):
         save_img = img
         if zone in obj:
             save_img = obj[zone]
         # if len(obj) > 0:
         #     save_img = obj[-1]
         cv2.imwrite("C:\Apache24\htdocs\images\zone_{}.jpg".format(zone), save_img)
+        cv2.imwrite("C:\Apache24\htdocs\images\zone_{}_{}.jpg".format(zone, event), save_img)
+        datetime_now = str(datetime.now().strftime("%Y%m%d_%H%M%S"))
+        fname = "{}_zone_{}_{}".format(datetime_now, zone, event)
+        cv2.imwrite("D:\CarPark\history\{}.jpg".format(fname), save_img)
+        self.append_to_file(fname)
+
 
     def post_save(self, zone, event, camera):
         response = self.apiClient.post_event(zone, event, camera)
@@ -397,10 +496,13 @@ class VehicleCounter:
             print("Failed to process event.")
 
     def post_event(self, zone, event):
-        # print("POST SEND")
+        timestamp_str = datetime.now().strftime("%H:%M:%S")
+        print(self.parking_lot_client.get_available_slots())
+        print([timestamp_str, zone, event, self.camera_name])
         response = self.apiClient.post_event(zone, event, self.camera_name)
         if not response:
             print("Failed to process event.")
+        print(self.parking_lot_client.get_available_slots())
 
     def cleanup(self):
         """Release resources."""

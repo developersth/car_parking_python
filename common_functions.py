@@ -2,6 +2,28 @@ import cv2
 from datetime import datetime
 import numpy as np
 
+def format_tuple(k):
+    """
+    Formats the tuple (x, y) such that if the values are less than 1000, 100, or 10, they are padded with varying amounts of space before the number,
+    and the values are displayed with only two decimal places.
+
+    :param k: A tuple (x, y) where x and y are floats or integers.
+    :return: A formatted string representing the tuple.
+    """
+    x, y = k
+    x_str = f"{x: .2f}" if x < 1000 else f"{x:.2f}"
+    x_str = f"{x:  .2f}" if x < 100 else x_str
+    x_str = f"{x:   .2f}" if x < 10 else x_str
+    
+    y_str = f"{y: .2f}" if y < 1000 else f"{y:.2f}"
+    y_str = f"{y:  .2f}" if y < 100 else y_str
+    y_str = f"{y:   .2f}" if y < 10 else y_str
+    
+    return f"({x_str}, {y_str})"
+def check_time(hour, minute):
+    current_time = datetime.now()
+    return current_time.hour == hour and current_time.minute == minute
+
 def crop_object(image, box, margin=0.5):
     """
     Crop an object from an image based on a bounding box and apply a margin for aesthetics.

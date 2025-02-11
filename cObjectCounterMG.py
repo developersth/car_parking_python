@@ -3,6 +3,7 @@
 from collections import defaultdict
 
 import cv2
+from datetime import datetime
 
 from ultralytics.utils.checks import check_imshow, check_requirements
 from ultralytics.utils.plotting import Annotator, colors
@@ -13,7 +14,7 @@ from shapely.geometry import LineString, Point, Polygon
 from common_functions import *
 
 
-class cObjectCounter:
+class cObjectCounterMG:
     """A class to manage the counting of objects in a real-time video stream based on their tracks."""
 
     def __init__(
@@ -62,7 +63,7 @@ class cObjectCounter:
         self.out_counts = 0
         self.in_counts_update = False
         self.out_counts_update = False
-        self.count_ids = []
+        self.count_ids = {}
         self.class_wise_count = {}
 
         # Tracks info
@@ -200,24 +201,35 @@ class cObjectCounter:
                     is_inside = self.counting_region.contains(Point(track_line[-1]))
 
                     if prev_position is not None and is_inside and track_id not in self.count_ids:
-                        self.count_ids.append(track_id)
+                        # self.count_ids.append(track_id)
+                        self.count_ids[track_id] = {'IN': 0, 'OUT': 0}
 
                         if (box[0] - prev_position[0]) * (self.counting_region.centroid.x - prev_position[0]) > 0:
                             self.in_counts += 1
                             self.class_wise_count[self.names[cls]]["IN"] += 1
+                            self.count_ids[track_id]['IN'] += 1
+                            self.state = "IN"
                         else:
                             self.out_counts += 1
                             self.class_wise_count[self.names[cls]]["OUT"] += 1
+                            self.count_ids[track_id]['OUT'] += 1
+                            self.state = "OUT"
 
                 # Count objects using line
                 elif len(self.reg_pts) == 2:
-                    if ( prev_position is not None and track_id not in self.count_ids ):
+                    if prev_position is not None:
+                        if track_id not in self.count_ids:
+                            self.count_ids[track_id] = {"IN": 0, "OUT": 0}
+
                         # Check if the object's movement segment intersects the counting line
                         line_coords = list(self.counting_line_segment.coords)
                         direction = self.check_crossing_within_line_area(line_coords[0], line_coords[1], (prev_position[0], prev_position[1]), track_line[-1])
 
+                        # timestamp_str = datetime.now().strftime("%H:%M:%S")
+                        # print([timestamp_str, direction, format_tuple(prev_position)])
+
                         if direction == "IN" or direction == "OUT":
-                            self.count_ids.append(track_id)
+                            # self.count_ids.append(track_id)
                             detect_img = crop_object(self.im0, box)
                             # print("direction: ", direction)
 
@@ -225,14 +237,16 @@ class cObjectCounter:
                             # dx = (box[0] - prev_position[0]) * (self.counting_region.centroid.x - prev_position[0])
                             # dy = (box[1] - prev_position[1]) * (self.counting_region.centroid.y - prev_position[1])
                             # if dx > 0 and dy > 0:
-                            if direction == "IN":
+                            if direction == "IN" and self.count_ids[track_id]['IN'] == 0:
                                 self.in_counts += 1
                                 self.class_wise_count[self.names[cls]]["IN"] += 1
+                                self.count_ids[track_id]['IN'] += 1
                                 self.state = "IN"
                             # else:
-                            elif direction == "OUT":
+                            elif direction == "OUT" and self.count_ids[track_id]['OUT'] == 0:
                                 self.out_counts += 1
                                 self.class_wise_count[self.names[cls]]["OUT"] += 1
+                                self.count_ids[track_id]['OUT'] += 1
                                 self.state = "OUT"
                         # else:
                         #     print("direction: ", direction)
@@ -286,6 +300,7 @@ class cObjectCounter:
         max_x = max(line_start[0], line_end[0])
         min_y = min(line_start[1], line_end[1])
         max_y = max(line_start[1], line_end[1])
+        # print([min_x, max_x, min_y, max_y])
 
         return min_x <= point.x <= max_x and min_y <= point.y <= max_y
 

@@ -26,11 +26,11 @@ def ensure_path_exists(path):
 
 # Define your RTSP URLs here with username and password
 rtsp_urls = {
-    "cam_mg": f"rtsp://{RTSP_MG_USER}:{RTSP_MG_PASS}@192.168.1.109",
-    "cam_lab-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.105",
-    "cam_main": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.103",
-    "cam_b-in": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.101",
-    "cam_b-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.100"
+    "cam_mg": f"rtsp://{RTSP_MG_USER}:{RTSP_MG_PASS}@192.168.1.51",
+    "cam_lab-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.31",
+    "cam_main": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.11",
+    "cam_b-in": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.22",
+    "cam_b-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.21"
 }
 
 class MyEvent:

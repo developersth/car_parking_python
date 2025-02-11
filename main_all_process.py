@@ -10,6 +10,7 @@ cameras = [
     # Add more camera names as needed
 ]
 
+# python .\main_rtsp.py --camera cam_main --view-img
 # Function to run the command for each camera
 def run_camera_processes():
     processes = []
