@@ -14,12 +14,30 @@ _logger.setLevel("DEBUG")
 class ModbusClient:
     """Class to handle Modbus TCP client operations."""
     
+    # def __init__(self, host="192.168.1.61", port=502, timeout=2):
+    #     """Initialize ModbusClient with connection parameters."""
+    #     _logger.info("### Creating Modbus TCP client")
+    #     self.client = ModbusTcpClient(host=host, port=port, framer="socket", timeout=timeout)
+
+   
+    # def connect(self):
+    #     """Connect to the Modbus server."""
+    #     if self.client.connect():
+    #         _logger.info("Connected to Modbus server")
+    #     else:
+    #         _logger.error("Failed to connect to Modbus server")
+
+    # def close(self):
+    #     """Close the connection to the Modbus server."""
+    #     self.client.close()
+    #     _logger.info("### Connection closed")
+
     def __init__(self, host="192.168.1.61", port=502, timeout=2):
         """Initialize ModbusClient with connection parameters."""
         _logger.info("### Creating Modbus TCP client")
-        self.client = ModbusTcpClient(host=host, port=port, framer="socket", timeout=timeout)
-        _logger.info(f"host ttdfdd : {self.client.host}")
-
+        self.host = host  # Store the host IP address as an attribute
+        self.client = ModbusTcpClient(host, port=port, framer="socket", timeout=timeout)
+   
     def connect(self):
         """Connect to the Modbus server."""
         if self.client.connect():
@@ -126,6 +144,36 @@ class ModbusLED:
 
     def write(self, group, value):
         """Write a decimal value to a specified group register."""
+
+        digit = self.group_addr[group][2]
+        register_addr = self.group_addr[group][0]
+        register_label = self.group_addr[group][1]
+
+        font_size = 4 
+        color = 5 #
+        if value == 'FULL':
+            font_size = 3
+            color = 0
+
+        response = self.client.client.write_registers(self.group_addr[group][3], font_size, unit=1)
+        if response.isError():
+            # _logger.error(f"Failed to write to registers {start} to {start+len(values)-1}")
+            _logger.error(f"Failed to write to registers.")
+        response = self.client.client.write_registers(self.group_addr[group][4], color, unit=1)
+        if response.isError():
+            # _logger.error(f"Failed to write to registers {start} to {start+len(values)-1}")
+            _logger.error(f"Failed to write to registers.")
+
+        if value == 'FULL':
+            self.client.write_register_group(register_addr, 'UFLL')
+        else:
+            value = str(value).zfill(digit)
+            msg = value[1] + value[0] + '\x00' + value[2]
+            self.client.write_register_group(register_addr, msg)
+
+    def write_scoreboard1(self, group, value):
+        """Write a decimal value to a specified group register."""
+
         digit = self.group_addr[group][2]
         register_addr = self.group_addr[group][0]
         register_label = self.group_addr[group][1]
@@ -151,5 +199,3 @@ class ModbusLED:
             value = str(value).zfill(digit)
             msg = value[1] + value[0] + '\x00' + value[2]
             self.client.write_register_group(register_addr, msg)
-
-

@@ -58,9 +58,9 @@ class ParkingLotLEDApp:
             try:
                 modbus_client = ModbusClient(host=host, port=self.modbus_port)
                 modbus_client.connect()
+
                 self.modbus_clients.append(modbus_client)
                 self.led_displays.append(ModbusLED(modbus_client))
-                log_with_context(f"Connected to Modbus Client at {host}")
             except Exception as e:
                 log_with_context(f"Error connecting to Modbus client at {host}: {e}", logging.ERROR)
                 continue
@@ -70,6 +70,9 @@ class ParkingLotLEDApp:
         retry_count = 0
         max_retries = 240 # 1hr
         retry_delay = 15  # seconds
+        # Get the count of items in self.led_displays
+
+        # Log the count
 
         try:
             while True:
@@ -84,12 +87,16 @@ class ParkingLotLEDApp:
                             gate = gate.replace("current_", "")
                             if slots <= 3:
                                 slots = 'FULL'
-                            
                             # Write to each LED display
                             for led in self.led_displays:
                                 try:
-                                    led.write(gate.capitalize(), slots)
-                                    log_with_context(f"Updated LED display for gate {gate} with slots: {slots}")
+                                        # Get the IP address from the Modbus client associated with the LED
+                                    led_ip = led.client.host  # Access 'host' directly from the 'client' (ModbusClient)
+                                
+                                    if(led_ip == '192.168.1.61') : 
+                                        led.write_scoreboard1(gate.capitalize(), slots)
+                                    else :
+                                        led.write(gate.capitalize(), slots)
                                 except Exception as e:
                                     log_with_context(f"Error writing to LED display: {e}", logging.ERROR)
                                     log_with_context("Modbus Client: Closing...")
