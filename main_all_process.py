@@ -6,7 +6,8 @@ cameras = [
     "cam_main",
     "cam_b-in",
     "cam_b-out",
-    "cam_mg"
+    "cam_mg",
+    "cam_center"
     # Add more camera names as needed
 ]
 

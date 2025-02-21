@@ -59,6 +59,9 @@ class VehicleCounter:
         self.image_queue = Queue(maxsize=10)
         self.vdo_width = 426
         self.last_check_time = None
+        self.text_size_bg = 7
+        self.text_size_front = 3
+
 
         # if 'lab-out' in self.camera_name:
         #     self.weights = "yolov10n.pt"
@@ -117,7 +120,8 @@ class VehicleCounter:
             "cam_b-out": [(575, 275), (1280, 425)],
             "cam_b-in": [(50, 350), (570, 200)],
             "cam_main": [(90, 600), (400, 325)],
-            "cam_mg": [(350, 390), (1100, 330)]
+            "cam_mg": [(350, 390), (1100, 330)],
+            "cam_center": [(350, 600), (1075, 280)],
         }
         return line_points_dict.get(camera_name, [(50, 400), (500, 250)])  # Default if not found
 
@@ -156,8 +160,8 @@ class VehicleCounter:
 
             # Convert FPS to string and display it on the frame
             fps_text = "RAW FPS: " + "{:02.1f}".format(fps)
-            cv2.putText(im0, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
-            cv2.putText(im0, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(im0, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), self.text_size_bg, cv2.LINE_AA)
+            cv2.putText(im0, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), self.text_size_front, cv2.LINE_AA)
 
             if not self.image_queue.full():
                 self.image_queue.put(im0)
@@ -200,16 +204,16 @@ class VehicleCounter:
                 view_in_counts=False,
                 view_out_counts=False,
             )
-        elif self.camera_name == "cam_main":
-            self.counter3 = cObjectCounter(
-                names=self.model.model.names,
-                view_img=False,
-                reg_pts=[(600, 300), (1050, 275)], # line b-in
-                draw_tracks=True,
-                line_thickness=self.line_thickness,
-                view_in_counts=False,
-                view_out_counts=False,
-            )
+        # elif self.camera_name == "cam_main":
+        #     self.counter3 = cObjectCounter(
+        #         names=self.model.model.names,
+        #         view_img=False,
+        #         reg_pts=[(600, 300), (1050, 275)], # line b-in
+        #         draw_tracks=True,
+        #         line_thickness=self.line_thickness,
+        #         view_in_counts=False,
+        #         view_out_counts=False,
+        #     )
             # self.counter4 = cObjectCounter(
             #     names=self.model.model.names,
             #     view_img=False,
@@ -230,6 +234,8 @@ class VehicleCounter:
         frame_count = 0
         tWarn = 0
         last_hour = -1
+        target_fps = 8.0
+        target_dt = 1.0/target_fps
 
         while self.bLoop:
             if not self.image_queue.empty():
@@ -240,8 +246,8 @@ class VehicleCounter:
                 # Calculate FPS
                 new_frame_time = time.time()
                 dt = new_frame_time - prev_frame_time
-                if dt < 0.1:
-                    time.sleep(0.1 - dt)
+                if dt < target_dt and dt > 0.000:
+                    time.sleep(target_dt - dt)
                     new_frame_time = time.time()
                     dt = new_frame_time - prev_frame_time
                 fps = 1 / dt
@@ -250,18 +256,18 @@ class VehicleCounter:
                 # Convert FPS to string and display it on the frame
                 # fps_text = "FPS: " + "{:.3f}".format(fps)
                 fps_text = "OUT FPS: " + "{:02.1f}".format(fps)
-                cv2.putText(im0, fps_text, (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)  # Black outline
-                cv2.putText(im0, fps_text, (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                cv2.putText(im0, fps_text, (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), self.text_size_bg, cv2.LINE_AA)  # Black outline
+                cv2.putText(im0, fps_text, (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), self.text_size_front, cv2.LINE_AA)
                 frame_text = "FRAME_COUNT: " + "{}".format(frame_count)
                 # cv2.putText(im0, fps_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-                cv2.putText(im0, frame_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)  # Black outline
-                cv2.putText(im0, frame_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)  # White text
+                cv2.putText(im0, frame_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), self.text_size_bg, cv2.LINE_AA)  # Black outline
+                cv2.putText(im0, frame_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), self.text_size_front, cv2.LINE_AA)  # White text
 
                 y_axis = 135
                 for u in update:
                     txt = u
-                    cv2.putText(im0, txt, (10, y_axis), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)  # Black outline
-                    cv2.putText(im0, txt, (10, y_axis), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)  # White text
+                    cv2.putText(im0, txt, (10, y_axis), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), self.text_size_bg, cv2.LINE_AA)  # Black outline
+                    cv2.putText(im0, txt, (10, y_axis), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), self.text_size_front, cv2.LINE_AA)  # White text
                     y_axis += 35
 
                 # Write frame to video
@@ -308,7 +314,7 @@ class VehicleCounter:
         cam = ""
         if "lab-" in self.camera_name or "main" in self.camera_name:
             cam = 'lab'
-        elif "b-" in self.camera_name:
+        elif "b-" in self.camera_name or "center" in self.camera_name:
             cam = 'b'
         elif "mg" in self.camera_name:
             cam = 'a'
@@ -349,23 +355,23 @@ class VehicleCounter:
             update.append(txt)
 
         elif self.camera_name == "cam_main":
-            _, crop_img = self.counter3.start_counting(im0, tracks, "centroid") # b-in
-            if not (crop_img is None):
-                crop_arr['b'] = crop_img
+            # _, crop_img = self.counter3.start_counting(im0, tracks, "centroid") # b-in
+            # if not (crop_img is None):
+            #     crop_arr['b'] = crop_img
                 # crop_arr.append(crop_img)
             # _, crop_img = self.counter4.start_counting(im0, tracks, "buttom-right") # a
             # if not (crop_img is None):
             #     crop_arr.append(crop_img)
 
             counts = self.counter.in_counts + self.counter.out_counts
-            counts3 = self.counter3.in_counts + self.counter3.out_counts
+            # counts3 = self.counter3.in_counts + self.counter3.out_counts
             msg = {'lab_in': (counts, self.counter.in_counts, self.counter.out_counts)}
-            msg['b-in'] = (counts3, self.counter3.in_counts, self.counter3.out_counts)
+            # msg['b-in'] = (counts3, self.counter3.in_counts, self.counter3.out_counts)
 
             txt = "lab : i={}, o={}".format(self.counter.in_counts, self.counter.out_counts)
             update.append(txt)
-            txt = "b-in: i={}, o={}".format(self.counter3.in_counts, self.counter3.out_counts)
-            update.append(txt)
+            # txt = "b-in: i={}, o={}".format(self.counter3.in_counts, self.counter3.out_counts)
+            # update.append(txt)
             # txt = "   a: i={}, o={}".format(self.counter4.in_counts, self.counter4.out_counts)
             # update.append(txt)
 
@@ -387,16 +393,16 @@ class VehicleCounter:
                 # if len(crop_arr) > 0:
                 #     save_img = crop_arr[-1]
                 # cv2.imwrite("C:\Apache24\htdocs\images\zone_lab.jpg", save_img)
-            if self.counter3.in_counts_update:
-                event='in'
-                self.post_event('b', 'in')
-                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b', event)
-            if self.counter3.out_counts_update:
-                event='out'
-                self.post_event('b', 'out')
-                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b', event)
+            # if self.counter3.in_counts_update:
+            #     event='in'
+            #     self.post_event('b', 'in')
+            #     self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+            #     self.save_crop(im0, crop_arr, 'b', event)
+            # if self.counter3.out_counts_update:
+            #     event='out'
+            #     self.post_event('b', 'out')
+            #     self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+            #     self.save_crop(im0, crop_arr, 'b', event)
             # if self.counter4.in_counts_update:
             #     self.post_event('a', 'in')
             #     self.post_save('a', 'save_image',"http://localhost/images/zone_a.jpg")
@@ -421,17 +427,17 @@ class VehicleCounter:
             event = ""
             if "-out" in self.camera_name:
                 event = 'out'
-            elif "-in" in self.camera_name:
+            elif "-in" in self.camera_name or "center" in self.camera_name:
                 event = 'in'
             
-            if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name:
+            if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name or "center" in self.camera_name:
                 txt = cam + ": i={}, o={}".format(self.counter.out_counts, self.counter.in_counts)
             else:
                 txt = cam + ": i={}, o={}".format(self.counter.in_counts, self.counter.out_counts)
             update.append(txt)
             if self.counter.in_counts_update:
                 event='in'
-                if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name:
+                if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name or "center" in self.camera_name:
                     event='out'
                 # print(["counter.in_counts_update", event, self.camera_name])
                 self.post_event(cam, event)
@@ -439,7 +445,7 @@ class VehicleCounter:
                 self.save_crop(im0, crop_arr, cam, event)
             if self.counter.out_counts_update:
                 event='out'
-                if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name:
+                if "cam_b-out" in self.camera_name or "cam_mg" in self.camera_name or "center" in self.camera_name:
                     event='in'
                 # print(["counter.out_counts_update", event, self.camera_name])
                 self.post_event(cam, event)

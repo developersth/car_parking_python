@@ -178,10 +178,10 @@ class ModbusLED:
         register_addr = self.group_addr[group][0]
         register_label = self.group_addr[group][1]
 
-        font_size = 2 
+        font_size = 1
         color = 1 #
         if value == 'FULL':
-            font_size = 2
+            font_size = 1
             color = 0
 
         response = self.client.client.write_registers(self.group_addr[group][3], font_size, unit=1)

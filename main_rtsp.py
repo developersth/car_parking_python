@@ -30,7 +30,8 @@ rtsp_urls = {
     "cam_lab-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.31",
     "cam_main": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.11",
     "cam_b-in": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.22",
-    "cam_b-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.21"
+    "cam_b-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.21",
+    "cam_center": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.52"
 }
 
 class MyEvent:
