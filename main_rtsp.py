@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import time
 from cVehicleCounter import VehicleCounter
+from cDeviceStatusUpdater import DeviceStatusUpdater
 import signal
 import sys
 import argparse
@@ -34,6 +35,8 @@ rtsp_urls = {
     "cam_center": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.52"
 }
 
+
+
 class MyEvent:
     def __init__(self):
         self.stop_event = False
@@ -50,6 +53,13 @@ def run_camera(camName, rtsp_url, view_img=True):
     # Create an instance of VehicleCounter and process the RTSP stream
     counter = VehicleCounter(camera_name=camName, source=rtsp_url, view_img=view_img, save_img=True)
     counter.run(stop_event)  # Pass the stop_event to the run method
+
+    # Send the camera status as 'online' to the server
+    server_url = "http://localhost:5000"  # Your server URL
+    updater = DeviceStatusUpdater(server_url)
+    # Assuming the camera has started successfully, send its status as 'online'
+    response = updater.send_status(camName, "online")
+    print(f"Camera {camName} status update response: {response}")
 
 def signal_handler(sig, frame):
     global stop_event
