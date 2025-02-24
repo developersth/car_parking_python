@@ -56,7 +56,7 @@ class ParkingLotLEDApp:
     """Main application class to run Parking Lot client operations and display on LED."""
     server_url = "http://localhost:5000"  # Replace with actual server URL
     updater = DeviceStatusUpdater(server_url)
-    
+
     def __init__(self, base_url, modbus_hosts=None, modbus_port=502):
         if modbus_hosts is None:
             modbus_hosts = ["192.168.1.61", "192.168.1.71", "192.168.1.72"]  # Default IPs
@@ -97,7 +97,7 @@ class ParkingLotLEDApp:
 
             try:
                 response = self.updater.send_status(device, status)
-                time.sleep(1)
+                time.sleep(60) # Wait for 1 minute before sending the next status update
                 if "error" in response:
                     log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
                 else:
