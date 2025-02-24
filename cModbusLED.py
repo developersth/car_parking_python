@@ -65,7 +65,7 @@ class ModbusClient:
 
     def write_register_group(self, start, data_str):
         """Write a string to a group of registers on the Modbus server."""
-        if len(data_str) != 4:
+        if not (1 <= len(data_str) <= 4):
             raise ValueError("Input string must be between 4 and 5 characters.")
         
         values = self.text_to_registers(data_str)
@@ -94,9 +94,6 @@ class ModbusClient:
         return text
 
     def text_to_registers(self, text):
-        if text == 'UFLL':
-            return [21830, 19532]
-        
         registers = []
         for i in range(0, len(text), 2):
             char_pair = text[i:i+2].ljust(2, '\x00')
@@ -115,6 +112,15 @@ class ModbusLED:
             'B': (70, '', 3, 216, 217),
             'Lab': (80, '', 3, 219, 220)
         }
+        self.brightness_addr = 40
+    
+    def set_brightness(self, brightness):
+        if not (0 <= brightness <= 9): #Description, DataType=Integer: 0=1, 1=2, 2=3
+            _logger.error(f"Failed to write to registers, brightness must between 0 and 9")
+            return
+        
+        self.client.client.write_registers(self.brightness_addr, brightness, unit=1)
+        _logger.info(f"Brightness set to {brightness}")
 
     def read(self):
         """Read values for groups A, B, Lab, and Mg, returning data as JSON."""
@@ -149,38 +155,9 @@ class ModbusLED:
         register_addr = self.group_addr[group][0]
         register_label = self.group_addr[group][1]
 
-        font_size = 4 
-        color = 5 #
-        if value == 'FULL':
-            font_size = 3
-            color = 0
-
-        response = self.client.client.write_registers(self.group_addr[group][3], font_size, unit=1)
-        if response.isError():
-            # _logger.error(f"Failed to write to registers {start} to {start+len(values)-1}")
-            _logger.error(f"Failed to write to registers.")
-        response = self.client.client.write_registers(self.group_addr[group][4], color, unit=1)
-        if response.isError():
-            # _logger.error(f"Failed to write to registers {start} to {start+len(values)-1}")
-            _logger.error(f"Failed to write to registers.")
-
-        if value == 'FULL':
-            self.client.write_register_group(register_addr, 'UFLL')
-        else:
-            value = str(value).zfill(digit)
-            msg = value[1] + value[0] + '\x00' + value[2]
-            self.client.write_register_group(register_addr, msg)
-
-    def write_scoreboard1(self, group, value):
-        """Write a decimal value to a specified group register."""
-
-        digit = self.group_addr[group][2]
-        register_addr = self.group_addr[group][0]
-        register_label = self.group_addr[group][1]
-
-        font_size = 1
-        color = 1 #
-        if value == 'FULL':
+        font_size = 1 
+        color = 1
+        if value == 'Full':
             font_size = 1
             color = 0
 
@@ -193,8 +170,8 @@ class ModbusLED:
             # _logger.error(f"Failed to write to registers {start} to {start+len(values)-1}")
             _logger.error(f"Failed to write to registers.")
 
-        if value == 'FULL':
-            self.client.write_register_group(register_addr, 'UFLL')
+        if value == 'Full':
+            self.client.write_register_group(register_addr, 'uFll')
         else:
             value = str(value).zfill(digit)
             msg = value[1] + value[0] + '\x00' + value[2]
