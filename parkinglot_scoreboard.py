@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 from cParkingLotClient import ParkingLotClient
 from cModbusLED import ModbusClient, ModbusLED
+from cDeviceStatusUpdater import DeviceStatusUpdater
 import os
 import inspect
 import requests
@@ -85,7 +86,23 @@ class ParkingLotLEDApp:
             except Exception as e:
                 log_with_context(f"Error connecting to Modbus client at {host}: {e}", logging.ERROR)
                 continue
-    
+
+    def update_device_status(self):
+        """Check the connection status of all Modbus devices and update the server."""
+        for i, host in enumerate(self.modbus_hosts):
+            device = "led1" if host == "192.168.1.61" else "led2" if host == "192.168.1.71" else "led3"
+            status = "online" if self.modbus_clients[i].client.connected else "offline"
+
+            try:
+                response = self.status_updater.send_status(device, status)
+                time.sleep(1)
+                if "error" in response:
+                    log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
+                else:
+                    log_with_context(f"Updated status for {device} ({host}): {status}")
+            except Exception as e:
+                log_with_context(f"Error updating device status for {device}: {e}", logging.ERROR)
+
     def update_brightness(self):
         global last_checked_time
         current_time = datetime.now().strftime('%H:%M')
@@ -110,8 +127,11 @@ class ParkingLotLEDApp:
                         time.sleep(0.2)
 
                 except Exception as e:
-                    log_with_context()
+                    log_with_context(f"Error updating brightness for {led_ip}: {e}", logging.ERROR)  # Fixed missing log message
+
             last_checked_time = current_time
+
+
 
     def run(self):
         """Main function to run Parking Lot client operations and display on LED."""
@@ -126,6 +146,7 @@ class ParkingLotLEDApp:
             while True:
                 try:
                     self.update_brightness()
+                    self.update_device_status()
 
                     # Fetch available slots from the server
                     available_slots = self.parking_lot_client.get_available_slots()
