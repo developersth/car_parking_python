@@ -11,7 +11,7 @@ from queue import Queue
 import torch
 
 from cParkingLotClient import ParkingLotClient
-
+from cDeviceStatusUpdater import DeviceStatusUpdater
 # Set YOLO to quiet mode
 os.environ['YOLO_VERBOSE'] = 'False'
 
@@ -99,6 +99,41 @@ class VehicleCounter:
 
         self.init_video_writer()
         self.bLoop=True
+        
+         # Initialize the thread for monitoring camera status
+        self.monitor_thread = threading.Thread(target=self.run_monitor)
+        self.monitor_thread.daemon = True  # Daemon thread will exit when the main program exits
+        self.monitor_thread.start()
+      
+    def check_camera_status(self):
+        # Try to open the video capture (RTSP stream or video source)
+        cap = cv2.VideoCapture(self.source)
+        if cap.isOpened():
+            cap.release()
+            return True  # Camera is online
+        else:
+            cap.release()
+            return False  # Camera is offline
+    
+    def run_monitor(self):
+        while True:
+            if self.check_camera_status():
+                # print(f"Camera {self.camera_name} is online.")
+                status = "online"
+            else:
+                print(f"Camera {self.camera_name} is offline.")
+                status = "offline"
+            
+            # Send the status to the server
+            updater = DeviceStatusUpdater("http://localhost:5000")  # Replace with your server URL
+            response = updater.send_status(self.camera_name, status)
+            # print(f"Camera {self.camera_name} status update response: {response}")
+            
+            time.sleep(60)  # Check status every 10 seconds
+
+    def stop_monitoring(self):
+        self.stop_event.set()  # Stop the monitoring thread
+        self.monitor_thread.join()  # Wait for the thread to finish
 
     def init_video_writer(self):
         # Get the current date and time

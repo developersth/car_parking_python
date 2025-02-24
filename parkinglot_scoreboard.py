@@ -7,7 +7,7 @@ from cDeviceStatusUpdater import DeviceStatusUpdater
 import os
 import inspect
 import requests
-
+import threading
 # Setup logging
 log_directory = "C:/car_parking_logs"
 os.makedirs(log_directory, exist_ok=True)  # Ensure the log directory exists
@@ -66,6 +66,11 @@ class ParkingLotLEDApp:
         log_with_context(f"Initialized ParkingLotLEDApp with base URL: {base_url}")
         self.init_modbus()
 
+        # Initialize the thread for monitoring led status
+        self.monitor_thread = threading.Thread(target=self.update_device_status)
+        self.monitor_thread.daemon = True  # Daemon thread will exit when the main program exits
+      
+
     def create_modbus_client(self, host):
         client = ModbusClient(host=host, port=self.modbus_port)
         if not client.connect():
@@ -91,19 +96,22 @@ class ParkingLotLEDApp:
 
     def update_device_status(self):
         """Check the connection status of all Modbus devices and update the server."""
-        for i, host in enumerate(self.modbus_hosts):
-            device = "led1" if host == "192.168.1.61" else "led2" if host == "192.168.1.71" else "led3"
-            status = "online" if self.modbus_clients[i].client.connected else "offline"
+        while True:
+            for i, host in enumerate(self.modbus_hosts):
+                device = "led1" if host == "192.168.1.61" else "led2" if host == "192.168.1.71" else "led3"
+                status = "online" if self.modbus_clients[i].client.connected else "offline"
 
-            try:
-                response = self.updater.send_status(device, status)
-                time.sleep(60) # Wait for 1 minute before sending the next status update
-                if "error" in response:
-                    log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
-                else:
-                    log_with_context(f"Updated status for {device} ({host}): {status}")
-            except Exception as e:
-                log_with_context(f"Error updating device status for {device}: {e}", logging.ERROR)
+                try:
+                    response = self.updater.send_status(device, status)
+                    time.sleep(0.5) # Wait for 1 minute before sending the next status update
+                    if "error" in response:
+                        log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
+                    #else:
+                    # log_with_context(f"Updated status for {device} ({host}): {status}")
+                except Exception as e:
+                    log_with_context(f"Error updating device status for {device}: {e}", logging.ERROR)
+
+            time.sleep(60)  # Check status every 10 seconds
 
     def update_brightness(self):
         global last_checked_time
@@ -143,13 +151,12 @@ class ParkingLotLEDApp:
         # Get the count of items in self.led_displays
 
         # Log the count
-
+        self.monitor_thread.start()
         try:
             while True:
                 try:
+                 
                     self.update_brightness()
-                    self.update_device_status()
-
                     # Fetch available slots from the server
                     available_slots = self.parking_lot_client.get_available_slots()
                     if available_slots:
