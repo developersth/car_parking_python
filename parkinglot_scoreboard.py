@@ -54,6 +54,8 @@ def log_with_context(message, level=logging.INFO):
 
 class ParkingLotLEDApp:
     """Main application class to run Parking Lot client operations and display on LED."""
+    server_url = "http://localhost:5000"  # Replace with actual server URL
+    updater = DeviceStatusUpdater(server_url)
     
     def __init__(self, base_url, modbus_hosts=None, modbus_port=502):
         if modbus_hosts is None:
@@ -94,7 +96,7 @@ class ParkingLotLEDApp:
             status = "online" if self.modbus_clients[i].client.connected else "offline"
 
             try:
-                response = self.status_updater.send_status(device, status)
+                response = self.updater.send_status(device, status)
                 time.sleep(1)
                 if "error" in response:
                     log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
