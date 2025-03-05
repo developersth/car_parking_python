@@ -174,6 +174,8 @@ class cObjectCounter:
                     track_line.append((float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)))
                 elif track_algorithms == "buttom-right":
                     track_line.append((float(box[2]), float(box[3])))
+                elif track_algorithms == "buttom-center":
+                    track_line.append((float((box[0] + box[2]) / 2), float(box[3])))
                 elif track_algorithms == "center-right":
                     track_line.append( (float(box[2]), float((box[1] + box[3]) / 2)) )
                 if len(track_line) > 150:

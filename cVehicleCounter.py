@@ -39,7 +39,7 @@ class VehicleCounter:
         view_img=False,
         save_img=False,
         exist_ok=False,
-        line_thickness=1,
+        line_thickness=2,
         track_thickness=1,
         region_thickness=1
     ):
@@ -156,7 +156,11 @@ class VehicleCounter:
             "cam_b-in": [(50, 350), (570, 200)],
             "cam_main": [(90, 600), (400, 325)],
             "cam_mg": [(350, 390), (1100, 330)],
-            "cam_center": [(350, 600), (1075, 280)],
+            # "cam_center": [(350, 600), (1075, 280)],
+            # "cam_center": [(309, 508), (1034, 188)], # 100px
+            # "cam_center": [(317, 526), (1042, 206)], # 80px
+            # "cam_center": [(321, 535), (1046, 215)], # 70px
+            "cam_center": [(238, 594), (1054, 234)], # 50px, expand left 100px
         }
         return line_points_dict.get(camera_name, [(50, 400), (500, 250)])  # Default if not found
 
@@ -341,6 +345,8 @@ class VehicleCounter:
         algorithms = "centroid"
         if self.camera_name == "cam_b-out" or self.camera_name == "cam_mg":
             algorithms = "buttom-right"
+        elif self.camera_name == "cam_b-in":
+            algorithms = "buttom-center"
 
         crop_arr = {}
         # Count and display counts
@@ -357,7 +363,7 @@ class VehicleCounter:
             crop_arr[cam] = crop_img
 
         if self.camera_name == "cam_b-in":
-            _, crop_img = self.counter2.start_counting(im0, tracks)
+            _, crop_img = self.counter2.start_counting(im0, tracks, "buttom-center")
             if not (crop_img is None):
                 crop_arr['b'] = crop_img
             counts1 = self.counter.in_counts + self.counter.out_counts
