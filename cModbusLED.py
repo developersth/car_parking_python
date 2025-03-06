@@ -38,10 +38,11 @@ class ModbusClient:
         self.host = host  # Store the host IP address as an attribute
         self.client = ModbusTcpClient(host, port=port, framer="socket", timeout=timeout)
    
+
     def connect(self):
         """Connect to the Modbus server."""
         if self.client.connect():
-            _logger.info("Connected to Modbus server")
+            _logger.info(f"Connected to Modbus server host : {self.host}")
         else:
             _logger.error("Failed to connect to Modbus server")
 
@@ -49,6 +50,7 @@ class ModbusClient:
         """Close the connection to the Modbus server."""
         self.client.close()
         _logger.info("### Connection closed")
+
 
     def read_register_group(self, start, count):
         """Read a group of registers from the Modbus server."""
@@ -147,7 +149,11 @@ class ModbusLED:
         for key in msg:
             msg[key] = int(msg[key].replace(self.group_addr[key][1], ''))
         return msg
-
+    
+    def is_connected(self):
+        """Check if the Modbus client socket is active."""
+        return self.client.client.connected
+        
     def write(self, group, value):
         """Write a decimal value to a specified group register."""
 

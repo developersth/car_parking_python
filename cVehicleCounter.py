@@ -153,7 +153,7 @@ class VehicleCounter:
         line_points_dict = {
             "cam_lab-out": [(100, 300), (1000, 600)],
             "cam_b-out": [(575, 275), (1280, 425)],
-            "cam_b-in": [(50, 350), (570, 200)],
+            "cam_b-in": [(575, 675), (775, 50)],
             "cam_main": [(90, 600), (400, 325)],
             "cam_mg": [(350, 390), (1100, 330)],
             # "cam_center": [(350, 600), (1075, 280)],
@@ -233,16 +233,16 @@ class VehicleCounter:
                 view_out_counts=False,
             )
 
-        if self.camera_name == "cam_b-in":
-            self.counter2 = cObjectCounter(
-                names=self.model.model.names,
-                view_img=False,
-                reg_pts=[(720, 150), (1050,180)],
-                draw_tracks=True,
-                line_thickness=self.line_thickness,
-                view_in_counts=False,
-                view_out_counts=False,
-            )
+        # if self.camera_name == "cam_b-in":
+        #     self.counter2 = cObjectCounter(
+        #         names=self.model.model.names,
+        #         view_img=False,
+        #         reg_pts=[(720, 150), (1050,180)],
+        #         draw_tracks=True,
+        #         line_thickness=self.line_thickness,
+        #         view_in_counts=False,
+        #         view_out_counts=False,
+        #     )
         # elif self.camera_name == "cam_main":
         #     self.counter3 = cObjectCounter(
         #         names=self.model.model.names,
@@ -345,8 +345,8 @@ class VehicleCounter:
         algorithms = "centroid"
         if self.camera_name == "cam_b-out" or self.camera_name == "cam_mg":
             algorithms = "buttom-right"
-        elif self.camera_name == "cam_b-in":
-            algorithms = "buttom-center"
+        # elif self.camera_name == "cam_b-in":
+        #     algorithms = "buttom-center"
 
         crop_arr = {}
         # Count and display counts
@@ -363,12 +363,13 @@ class VehicleCounter:
             crop_arr[cam] = crop_img
 
         if self.camera_name == "cam_b-in":
-            _, crop_img = self.counter2.start_counting(im0, tracks, "buttom-center")
+            # _, crop_img = self.counter2.start_counting(im0, tracks, "buttom-center")
             if not (crop_img is None):
                 crop_arr['b'] = crop_img
             counts1 = self.counter.in_counts + self.counter.out_counts
-            counts2 = self.counter2.in_counts + self.counter2.out_counts
-            msg = {'line_1': (counts1, self.counter.in_counts, self.counter.out_counts), 'line_2': (counts2, self.counter2.in_counts, self.counter2.out_counts)}
+            # counts2 = self.counter2.in_counts + self.counter2.out_counts
+            # msg = {'line_1': (counts1, self.counter.in_counts, self.counter.out_counts), 'line_2': (counts2, self.counter2.in_counts, self.counter2.out_counts)}
+            msg = {'line_1': (counts1, self.counter.in_counts, self.counter.out_counts)}
             if self.counter.out_counts_update:
                 event='in'
                 self.post_event('b', 'in')
@@ -379,21 +380,21 @@ class VehicleCounter:
                 self.post_event('b', 'out')
                 self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
                 self.save_crop(im0, crop_arr, 'b', event)
-            if self.counter2.out_counts_update:
-                event='in'
-                self.post_event('b', 'in')
-                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b', event)
-            if self.counter2.in_counts_update:
-                event='out'
-                self.post_event('b', 'out')
-                self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
-                self.save_crop(im0, crop_arr, 'b', event)
+            # if self.counter2.out_counts_update:
+            #     event='in'
+            #     self.post_event('b', 'in')
+            #     self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+            #     self.save_crop(im0, crop_arr, 'b', event)
+            # if self.counter2.in_counts_update:
+            #     event='out'
+            #     self.post_event('b', 'out')
+            #     self.post_save('b', 'save_image',"http://localhost/images/zone_b.jpg")
+            #     self.save_crop(im0, crop_arr, 'b', event)
 
             txt = "b1: i={}, o={}".format(self.counter.out_counts, self.counter.in_counts)
             update.append(txt)
-            txt = "b2: i={}, o={}".format(self.counter2.out_counts, self.counter2.in_counts)
-            update.append(txt)
+            # txt = "b2: i={}, o={}".format(self.counter2.out_counts, self.counter2.in_counts)
+            # update.append(txt)
 
         elif self.camera_name == "cam_main":
             # _, crop_img = self.counter3.start_counting(im0, tracks, "centroid") # b-in
