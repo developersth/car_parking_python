@@ -87,14 +87,14 @@ class ParkingLotLEDApp:
                 continue
 
             
-    def create_modbus_client(self, host):
-        client = ModbusClient(host=host, port=self.modbus_port)
-        if not client.connect():
-            log_with_context(f"Failed to connect to {host}, retrying in 5 seconds...", logging.WARNING)
-            time.sleep(5)
-            if not client.connect():
-                log_with_context(f"Still unable to connect to {host}, will skip this client.", logging.ERROR)
-        return client
+    # def create_modbus_client(self, host):
+    #     client = ModbusClient(host=host, port=self.modbus_port)
+    #     if not client.connect():
+    #         log_with_context(f"Failed to connect to {host}, retrying in 5 seconds...", logging.WARNING)
+    #         time.sleep(5)
+    #         if not client.connect():
+    #             log_with_context(f"Still unable to connect to {host}, will skip this client.", logging.ERROR)
+    #     return client
     
     def reconnect_modbus_client(self, host):
         """Reconnect Modbus client if disconnected."""
@@ -108,48 +108,75 @@ class ParkingLotLEDApp:
             log_with_context(f"Failed to reconnect to {host}.", logging.ERROR)
             return None
 
+    # def update_device_status(self):
+    #     """Check the connection status of all Modbus devices and reconnect if necessary."""
+    #     device_map = {
+    #         "192.168.1.61": "led1",
+    #         "192.168.1.71": "led2",
+    #         "192.168.1.72": "led3"
+    #     }
+
+    #     while True:
+    #         time.sleep(10)
+    #         for i, host in enumerate(self.modbus_hosts):
+    #             status = "offline"
+    #             device = device_map.get(host, None)
+
+    #             modbus_client = self.modbus_clients[i] if i < len(self.modbus_clients) else None
+
+    #             if modbus_client and modbus_client.client:
+    #                 status = "online" if modbus_client.client.connected else "offline"
+
+    #             # ถ้า offline ให้ลอง reconnect
+    #             if status == "offline":
+    #                 log_with_context(f"Device {device} ({host}) is offline. Attempting to reconnect...", logging.WARNING)
+    #                 new_client = self.reconnect_modbus_client(host)
+    #                 if new_client:
+    #                     self.modbus_clients[i] = new_client  # อัปเดตเป็น client ใหม่
+    #                     status = "online"
+
+    #             # อัปเดตสถานะไปยัง server
+    #             if device:
+    #                 try:
+    #                     response = self.updater.send_status(device, status)
+    #                     if response and "error" in response:
+    #                         log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
+    #                 except Exception as e:
+    #                     log_with_context(f"Error updating device status for {device}: {e}", logging.ERROR)
+
+    #             time.sleep(0.5)
+
     def update_device_status(self):
-        """Check the connection status of all Modbus devices and reconnect if necessary."""
-        device_map = {
-            "192.168.1.61": "led1",
-            "192.168.1.71": "led2",
-            "192.168.1.72": "led3"
-        }
-
+        """Check and update device status. Attempt reconnection if a device is offline."""
         while True:
-            time.sleep(10)
             for i, host in enumerate(self.modbus_hosts):
-                status = "offline"
-                device = device_map.get(host, None)
+                device = f"led{i+1}"
+                client = self.modbus_clients[i]
 
-                modbus_client = self.modbus_clients[i] if i < len(self.modbus_clients) else None
-
-                if modbus_client and modbus_client.client:
-                    status = "online" if modbus_client.client.connected else "offline"
-
-                # ถ้า offline ให้ลอง reconnect
-                if status == "offline":
-                    log_with_context(f"Device {device} ({host}) is offline. Attempting to reconnect...", logging.WARNING)
-                    new_client = self.reconnect_modbus_client(host)
+                if client is None or not client.client.connected:
+                    log_with_context(f"{device} ({host}) is offline. Attempting reconnect...", logging.WARNING)
+                    new_client = self.create_modbus_client(host)
+                    
                     if new_client:
-                        self.modbus_clients[i] = new_client  # อัปเดตเป็น client ใหม่
-                        status = "online"
+                        self.modbus_clients[i] = new_client
+                        log_with_context(f"Reconnected {device} ({host}).", logging.INFO)
+                    else:
+                        log_with_context(f"Failed to reconnect {device} ({host}).", logging.ERROR)
+                        status = "offline"
+                else:
+                    status = "online"
 
-                # อัปเดตสถานะไปยัง server
-                if device:
-                    try:
-                        response = self.updater.send_status(device, status)
-                        if response and "error" in response:
-                            log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
-                    except Exception as e:
-                        log_with_context(f"Error updating device status for {device}: {e}", logging.ERROR)
+                try:
+                    response = self.updater.send_status(device, status)
+                    time.sleep(0.5)
+                    if "error" in response:
+                        log_with_context(f"Failed to update status for {device} ({host}): {response['error']}", logging.ERROR)
+                except Exception as e:
+                    log_with_context(f"Error updating device status for {device}: {e}", logging.ERROR)
 
-                time.sleep(0.5)
+            time.sleep(30)
 
       
-
-
-
     # def update_brightness(self):
     #     global last_checked_time
     #     current_time = datetime.now().strftime('%H:%M')
@@ -183,39 +210,30 @@ class ParkingLotLEDApp:
         current_time = datetime.now().strftime('%H:%M')
 
         if current_time in brightness_schedule and last_checked_time != current_time:
-            schedule = brightness_schedule[current_time]  # ดึงค่า brightness ตามเวลาปัจจุบัน
-
             for led in self.led_displays:
-                # ตรวจสอบว่า client มีอยู่จริงหรือไม่
-                if not led.client or not hasattr(led.client, "host"):
-                    log_with_context("Skipping LED due to missing client instance.", logging.WARNING)
-                    continue  # ข้าม LED ที่ไม่มี client
-
                 led_ip = led.client.host
-                brightness = schedule.get(led_ip, schedule.get("default", 0))
+                brightness = brightness_schedule[current_time].get(led_ip, brightness_schedule[current_time].get("default", 0))
 
                 try:
-                    # ตรวจสอบสถานะการเชื่อมต่อ
-                    if led.is_connected:
-                        led.set_brightness(brightness)
-                        time.sleep(0.2)
-                        log_with_context(f"Set brightness {brightness} for LED at {led_ip}")
-                    # else:
-                    #     log_with_context(f"Reconnecting to {led_ip}...", logging.WARNING)
-                    #     new_client = self.create_modbus_client(led_ip)
-                    #     if new_client and new_client.connect():
-                    #         led.client = new_client
-                    #         led.set_brightness(brightness)
-                    #         log_with_context(f"Reconnected & set brightness {brightness} for LED at {led_ip}")
-                    #     else:
-                    #         log_with_context(f"Failed to reconnect to {led_ip}", logging.ERROR)
+                    if not led.is_connected:  # Check connection
+                        log_with_context(f"Reconnecting to {led_ip}", logging.WARNING)
+                        new_client = self.create_modbus_client(led_ip)
+                        if new_client:
+                            led.client = new_client
+                            log_with_context(f"Reconnected to {led_ip}")
+                        else:
+                            log_with_context(f"Failed to reconnect to {led_ip}. Skipping brightness update.", logging.ERROR)
+                            continue
 
-                    time.sleep(0.2)  # หน่วงเวลาสั้น ๆ ก่อนอัปเดต LED ถัดไป
+                    led.set_brightness(brightness)
+                    time.sleep(0.2)
+                    log_with_context(f"Set brightness {brightness} for LED at {led_ip}")
 
                 except Exception as e:
                     log_with_context(f"Error updating brightness for {led_ip}: {e}", logging.ERROR)
 
-            last_checked_time = current_time  # อัปเดตเวลาล่าสุดหลังจากทำเสร็จ
+            last_checked_time = current_time
+
 
 
     def run(self):
