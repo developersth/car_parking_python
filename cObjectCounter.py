@@ -140,14 +140,20 @@ class cObjectCounter:
         # Extract tracks for OBB or object detection
         track_data = tracks[0].obb or tracks[0].boxes
         # print(track_data.cls)
+        # print("start......")
         # print(track_data.conf)
+        # print("=========")
         # print(track_data)
+        # print("end......")
         if track_data:
             boxes = track_data.xyxy.cpu()
             clss = track_data.cls.cpu().tolist()
-            for box, cls in zip(boxes, clss):
+            confs = track_data.conf.cpu().tolist()
+            for box, cls, conf in zip(boxes, clss, confs):
                 # Draw bounding box
-                annotator.box_label(box, label=self.names[cls])
+                txt = self.names[cls] + "," + str(round(conf,2))
+                # print(txt)
+                annotator.box_label(box, label=txt)
 
         if track_data and track_data.id is not None:
             # print('xxxxxxxxxxxxxxxxxxxxx')
