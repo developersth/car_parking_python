@@ -1,12 +1,13 @@
 import os
+import time
 from dotenv import load_dotenv
 from pathlib import Path
-import time
+from datetime import datetime, timedelta
 from cVehicleCounter import VehicleCounter
 import signal
 import sys
 import argparse
-from datetime import datetime, timedelta # Import for date calculations
+import threading
 
 load_dotenv()
 
@@ -16,14 +17,7 @@ RTSP_PASS = os.getenv('RTSP_PASS')
 RTSP_MG_USER = os.getenv('RTSP_MG_USER')
 RTSP_MG_PASS = os.getenv('RTSP_MG_PASS')
 
-def ensure_path_exists(path):
-    try:
-        Path(path).mkdir(parents=True, exist_ok=True)
-        print(f"Path ensured: {path}")
-    except OSError as e:
-        print(f"Error creating path: {e}")
-
-# Define your RTSP URLs here with username and password
+# Define your RTSP URLs here
 rtsp_urls = {
     "cam_mg": f"rtsp://{RTSP_MG_USER}:{RTSP_MG_PASS}@192.168.1.51",
     "cam_lab-out": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.31",
@@ -33,65 +27,69 @@ rtsp_urls = {
     "cam_center": f"rtsp://{RTSP_USER}:{RTSP_PASS}@192.168.1.52"
 }
 
+# Ensures a directory exists
+def ensure_path_exists(path):
+    try:
+        Path(path).mkdir(parents=True, exist_ok=True)
+        print(f"Path ensured: {path}")
+    except OSError as e:
+        print(f"Error creating path: {e}")
+
+# Flag to control stop
 class MyEvent:
     def __init__(self):
         self.stop_event = False
 
-# Flag to signal threads to stop
 stop_event = MyEvent()
-print('stop_event: ', stop_event.stop_event)
 
+# Run camera capture
 def run_camera(camName, rtsp_url, view_img=True):
     global stop_event
     resultFolder = f"D:\\CarPark\\rtsp\\{camName}"
     ensure_path_exists(resultFolder)
 
-    # Create an instance of VehicleCounter and process the RTSP stream
     counter = VehicleCounter(camera_name=camName, source=rtsp_url, view_img=view_img, save_img=True)
-    counter.run(stop_event)  # Pass the stop_event to the run method
-    # counter.run_monitor(stop_event)
- 
-def delete_old_log_files(base_log_dir, days_old=30):
-    """
-    Deletes log files older than a specified number of days from camera directories.
+    counter.run(stop_event)
 
-    Args:
-        base_log_dir (str): The base directory where camera log folders are located (e.g., D:\\CarPark\\rtsp).
-        days_old (int): The age in days beyond which files should be deleted.
-    """
-    cutoff_time = datetime.now() - timedelta(days=days_old)
-    print(f"\n--- Starting log file cleanup (older than {days_old} days) ---")
-    print(f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Cutoff time: {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Base log directory: {base_log_dir}")
-
+# Function to delete old log files based on filename date
+def delete_old_log_files_by_filename(base_log_dir, days_old=30):
+    cutoff_date = datetime.now() - timedelta(days=days_old)
+    print(f"\n--- Cleaning up files older than {cutoff_date.date()} ---")
 
     for camName in rtsp_urls.keys():
         camera_log_path = Path(base_log_dir) / camName
-        if camera_log_path.is_dir():
-            print(f"Checking {camera_log_path} for old files...")
-            deleted_count = 0
-            for root, _, files in os.walk(camera_log_path):
-                for file in files:
-                    file_path = Path(root) / file
-                    try:
-                        # Get modification time of the file
-                        file_mod_time = datetime.fromtimestamp(file_path.stat().st_mtime)
-                        if file_mod_time < cutoff_time:
-                            os.remove(file_path)
-                            print(f"Deleted: {file_path}")
-                            deleted_count += 1
-                    except OSError as e:
-                        print(f"Error deleting {file_path}: {e}")
-            if deleted_count == 0:
-                print(f"No old files found in {camera_log_path}.")
-            else:
-                print(f"Cleaned {deleted_count} old files from {camera_log_path}.")
-        else:
-            print(f"Camera log directory not found: {camera_log_path}")
-    print("--- Log file cleanup complete ---\n")
+        if not camera_log_path.exists():
+            print(f"Directory not found: {camera_log_path}")
+            continue
 
+        deleted_count = 0
+        for file in camera_log_path.glob("*.mp4"):
+            try:
+                date_str = file.name.split("_")[0]
+                file_date = datetime.strptime(date_str, "%Y%m%d")
+                if file_date < cutoff_date:
+                    file.unlink()
+                    print(f"Deleted: {file.name}")
+                    deleted_count += 1
+            except Exception as e:
+                print(f"Failed to process {file.name}: {e}")
 
+        print(f"Deleted {deleted_count} files in {camera_log_path}")
+    print("--- Cleanup complete ---\n")
+
+# Background task to run cleanup every day at 04:01
+def daily_log_cleanup_task(base_log_dir, days_old=30):
+    while True:
+        now = datetime.now()
+        next_run = (now + timedelta(days=1)).replace(hour=4, minute=1, second=0, microsecond=0)
+        wait_seconds = (next_run - now).total_seconds()
+        print(f"[Cleanup Scheduler] Next cleanup at {next_run}, waiting {int(wait_seconds)} seconds")
+        time.sleep(wait_seconds)
+
+        print("[Cleanup Scheduler] Running daily log cleanup...")
+        delete_old_log_files_by_filename(base_log_dir, days_old)
+
+# Handle Ctrl+C
 def signal_handler(sig, frame):
     global stop_event
     print('You pressed Ctrl+C!')
@@ -99,27 +97,28 @@ def signal_handler(sig, frame):
     print('stop_event: ', stop_event.stop_event)
     sys.exit(0)
 
-# Set up the signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
-# Parse command-line arguments
+# Parse arguments
 parser = argparse.ArgumentParser(description="Run vehicle counter for a specific camera.")
 parser.add_argument('--camera', type=str, required=True, help="Name of the camera to run (e.g., cam_b-out)")
 parser.add_argument('--view-img', action='store_true', help="Whether to view the image (default: False)")
 args = parser.parse_args()
-print(args)
 
-# Check if the provided camera name exists in the rtsp_urls dictionary
+# Main execution
 if args.camera in rtsp_urls:
     camName = args.camera
     rtsp_url = rtsp_urls[camName]
-    
-    # --- Integrate log file deletion here ---
-    base_log_directory = "D:\\CarPark\\rtsp" # Adjust this to your actual log directory
-    delete_old_log_files(base_log_directory, days_old=30)
-    # ----------------------------------------
+    base_log_directory = "D:\\CarPark\\rtsp"
 
-    print(args.view_img)
+    # 🔁 Start background cleanup thread
+    cleanup_thread = threading.Thread(target=daily_log_cleanup_task, args=(base_log_directory, 30), daemon=True)
+    cleanup_thread.start()
+
+    # 🧹 Run initial cleanup once
+    delete_old_log_files_by_filename(base_log_directory, days_old=30)
+
+    # 📹 Start camera
     run_camera(camName, rtsp_url, view_img=args.view_img)
 else:
     print(f"Camera '{args.camera}' not found. Available cameras: {', '.join(rtsp_urls.keys())}")
