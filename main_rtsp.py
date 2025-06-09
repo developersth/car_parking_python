@@ -56,26 +56,21 @@ def delete_old_log_files_by_filename(base_log_dir, days_old=30):
     cutoff_date = datetime.now() - timedelta(days=days_old)
     print(f"\n--- Cleaning up files older than {cutoff_date.date()} ---")
 
-    for camName in rtsp_urls.keys():
-        camera_log_path = Path(base_log_dir) / camName
-        if not camera_log_path.exists():
-            print(f"Directory not found: {camera_log_path}")
-            continue
+    deleted_count = 0
+    for file in Path(base_log_dir).glob("*.mp4"):
+        try:
+            date_str = file.name.split("_")[0]
+            file_date = datetime.strptime(date_str, "%Y%m%d")
+            if file_date < cutoff_date:
+                file.unlink()
+                print(f"Deleted: {file.name}")
+                deleted_count += 1
+        except Exception as e:
+            print(f"Failed to process {file.name}: {e}")
 
-        deleted_count = 0
-        for file in camera_log_path.glob("*.mp4"):
-            try:
-                date_str = file.name.split("_")[0]
-                file_date = datetime.strptime(date_str, "%Y%m%d")
-                if file_date < cutoff_date:
-                    file.unlink()
-                    print(f"Deleted: {file.name}")
-                    deleted_count += 1
-            except Exception as e:
-                print(f"Failed to process {file.name}: {e}")
-
-        print(f"Deleted {deleted_count} files in {camera_log_path}")
+    print(f"Deleted {deleted_count} files from {base_log_dir}")
     print("--- Cleanup complete ---\n")
+
 
 # Background task to run cleanup every day at 04:01
 def daily_log_cleanup_task(base_log_dir, days_old=30):
